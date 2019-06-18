@@ -4,10 +4,10 @@
 -- Copyright (c) 2012-2014 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("configset")
-
-	local configset = premake.configset
-	local field = premake.field
+	local configset = p.configset
+	local field = p.field
 
 
 --
@@ -17,6 +17,7 @@
 	local cset, parentset
 
 	function suite.setup()
+		local wks = test.createWorkspace()
 		parentset = configset.new()
 		cset = configset.new(parentset)
 	end
@@ -127,9 +128,9 @@
 -- List fields should return an empty list of not set.
 --
 
-     function suite.lists_returnsEmptyTable_onNotSet()
-          test.isequal({}, configset.fetch(cset, field.get("buildoptions"), {}))
-     end
+	function suite.lists_returnsEmptyTable_onNotSet()
+		test.isequal({}, configset.fetch(cset, field.get("buildoptions"), {}))
+	end
 
 
 --
@@ -175,16 +176,27 @@
 
 	function suite.remove_onExactValueMatch()
 		local f = field.get("flags")
-		configset.store(cset, f, { "Symbols", "WinMain", "MFC" })
+
+		local r, err = configset.store(cset, f, { "Symbols", "WinMain", "MFC" })
+		test.isnil(err)
+
 		configset.remove(cset, f, { "WinMain" })
-		test.isequal({ "Symbols", "MFC" }, configset.fetch(cset, f, {}))
+
+		local result = configset.fetch(cset, f)
+		test.isequal({ "Symbols", "MFC" }, result)
 	end
+
 
 	function suite.remove_onMultipleValues()
 		local f = field.get("flags")
-		configset.store(cset, f, { "Symbols", "Maps", "WinMain", "MFC" })
+
+		local r, err = configset.store(cset, f, { "Symbols", "Maps", "WinMain", "MFC" })
+		test.isnil(err)
+
 		configset.remove(cset, f, { "Maps", "MFC" })
-		test.isequal({ "Symbols", "WinMain" }, configset.fetch(cset, f, {}))
+
+		local result = configset.fetch(cset, f)
+		test.isequal({ "Symbols", "WinMain" }, result)
 	end
 
 

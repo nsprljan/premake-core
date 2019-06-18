@@ -34,6 +34,8 @@
 	premake.CSHARP      = "C#"
 	premake.GCC         = "gcc"
 	premake.HAIKU       = "haiku"
+	premake.ANDROID     = "android"
+	premake.IOS         = "ios"
 	premake.LINUX       = "linux"
 	premake.MACOSX      = "macosx"
 	premake.MAKEFILE    = "Makefile"
@@ -49,11 +51,13 @@
 	premake.UNICODE     = "Unicode"
 	premake.UNIVERSAL   = "universal"
 	premake.UTILITY     = "Utility"
+	premake.PACKAGING   = "Packaging"
 	premake.WINDOWEDAPP = "WindowedApp"
 	premake.WINDOWS     = "windows"
 	premake.X86         = "x86"
 	premake.X86_64      = "x86_64"
-	premake.XBOX360     = "xbox360"
+	premake.ARM         = "ARM"
+	premake.ARM64       = "ARM64"
 
 
 
@@ -146,6 +150,14 @@
 			return false
 		end
 
+		-- try to parse semver, if it fails, it's not semver compatible and we cannot compare, in which case
+		-- we're going to ignore the checkVersion entirely, but warn.
+		if not premake.isSemVer(version) then
+			p.warn("'" .. version .. "' is not semver compatible, and cannot be compared against '" .. checks .. "'.");
+			return true
+		end
+
+		-- now compare the semver against the checks.
 		local function eq(a, b) return a == b end
 		local function le(a, b) return a <= b end
 		local function lt(a, b) return a < b  end
@@ -333,7 +345,9 @@
 		if _OPTIONS.fatal then
 			error(message)
 		else
+			term.pushColor(term.warningColor)
 			io.stderr:write(string.format("** Warning: " .. message .. "\n", ...))
+			term.popColor();
 		end
 	end
 
@@ -358,6 +372,23 @@
 	end
 
 
+--
+-- Display information in the term.infoColor color.
+--
+-- @param message
+--    The info message, which may contain string formatting tokens.
+-- @param ...
+--    Values to fill in the string formatting tokens.
+--
+
+	function premake.info(message, ...)
+		message = string.format(message, ...)
+		term.pushColor(term.infoColor)
+		io.stdout:write(string.format("** Info: " .. message .. "\n", ...))
+		term.popColor();
+	end
+
+
 
 --
 -- A shortcut for printing formatted output.
@@ -374,4 +405,31 @@
 		if _OPTIONS.verbose then
 			print(string.format(msg, ...))
 		end
+	end
+
+
+--
+-- make a string from debug.getinfo information.
+--
+	function filelineinfo(level)
+		local info = debug.getinfo(level+1, "Sl")
+		if info == nil then
+			return nil
+		end
+		if info.what == "C" then
+			return "C function"
+		else
+			local sep = iif(os.ishost('windows'), '\\', '/')
+			return string.format("%s(%d)", path.translate(info.short_src, sep), info.currentline)
+		end
+	end
+
+
+---
+-- check if version is semver.
+---
+
+	function premake.isSemVer(version)
+		local sMajor, sMinor, sPatch, sPrereleaseAndBuild = version:match("^(%d+)%.?(%d*)%.?(%d*)(.-)$")
+		return (type(sMajor) == 'string')
 	end

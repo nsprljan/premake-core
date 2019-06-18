@@ -38,11 +38,8 @@
 		flags = {
 			FatalCompileWarnings = "/WX",
 			MultiProcessorCompile = "/MP",
-			NoFramePointer = "/Oy",
 			NoMinimalRebuild = "/Gm-",
-			OmitDefaultLibrary = "/Zl",
-			StaticRuntime = function(cfg) return iif(config.isDebugBuild(cfg), "/MTd", "/MT") end,
-			_StaticRuntime = function(cfg) return iif(config.isDebugBuild(cfg), "/MDd", "/MD") end
+			OmitDefaultLibrary = "/Zl"
 		},
 		floatingpoint = {
 			Fast = "/fp:fast",
@@ -84,7 +81,16 @@
 		},
 		warnings = {
 			Extra = "/W4",
+			High = "/W4",
 			Off = "/W0",
+		},
+		staticruntime = {
+			-- this option must always be emit (does it??)
+			_ = function(cfg) return iif(config.isDebugBuild(cfg), "/MDd", "/MD") end,
+			-- runtime defaults to dynamic in VS
+			Default = function(cfg) return iif(config.isDebugBuild(cfg), "/MDd", "/MD") end,
+			On = function(cfg) return iif(config.isDebugBuild(cfg), "/MTd", "/MT") end,
+			Off = function(cfg) return iif(config.isDebugBuild(cfg), "/MDd", "/MD") end,
 		},
 		stringpooling = {
 			On = "/GF",
@@ -92,7 +98,14 @@
 		},
 		symbols = {
 			On = "/Z7"
+		},
+		unsignedchar = {
+			On = "/J",
+		},
+		omitframepointer = {
+			On = "/Oy"
 		}
+
 	}
 
 	msc.cflags = {
@@ -138,6 +151,7 @@
 			Default = { '/D"_UNICODE"', '/D"UNICODE"' },
 			MBCS = '/D"_MBCS"',
 			Unicode = { '/D"_UNICODE"', '/D"UNICODE"' },
+			ASCII = { },
 		}
 	}
 
@@ -189,7 +203,7 @@
 
 		table.foreachi(cfg.forceincludes, function(value)
 			local fn = project.getrelative(cfg.project, value)
-			table.insert(result, "/FI" .. premake.quoted(fn))
+			table.insert(result, "/FI" .. p.quoted(fn))
 		end)
 
 		return result
@@ -208,7 +222,7 @@
 		dirs = table.join(dirs, sysdirs)
 		for _, dir in ipairs(dirs) do
 			dir = project.getrelative(cfg.project, dir)
-			table.insert(result, '-I' ..  premake.quoted(dir))
+			table.insert(result, '-I' ..  p.quoted(dir))
 		end
 		return result
 	end
@@ -241,7 +255,7 @@
 	}
 
 	function msc.getldflags(cfg)
-		local map = iif(cfg.kind ~= premake.STATICLIB, msc.linkerFlags, msc.librarianFlags)
+		local map = iif(cfg.kind ~= p.STATICLIB, msc.linkerFlags, msc.librarianFlags)
 		local flags = config.mapFlags(cfg, map)
 		table.insert(flags, 1, "/NOLOGO")
 

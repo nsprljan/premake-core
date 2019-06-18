@@ -4,8 +4,9 @@
 -- Copyright (c) 2012-2013 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("config_links")
-	local config = premake.config
+	local config = p.config
 
 
 --
@@ -15,8 +16,8 @@
 	local wks, prj
 
 	function suite.setup()
-		premake.action.set("test")
-		_OS = "windows"
+		p.action.set("test")
+		_TARGET_OS = "windows"
 		wks, prj = test.createWorkspace()
 	end
 
@@ -190,4 +191,34 @@
 
 		local r = prepare("all", "fullpath")
 		test.isequal({}, r)
+	end
+
+
+--
+-- Mixed and unmanaged projects can link to each other.
+--
+
+
+	function suite.canLink_MixedAndNativeCpp()
+		clr "On"
+		links { "MyProject2" }
+
+		project "MyProject2"
+		kind "SharedLib"
+		language "C++"
+
+		local r = prepare("all", "fullpath")
+		test.isequal({ "bin/Debug/MyProject2.lib" }, r)
+	end
+
+	function suite.canLink_NativeAndMixedCpp()
+		links { "MyProject2" }
+
+		project "MyProject2"
+		kind "SharedLib"
+		language "C++"
+		clr "On"
+
+		local r = prepare("all", "fullpath")
+		test.isequal({ "bin/Debug/MyProject2.lib" }, r)
 	end

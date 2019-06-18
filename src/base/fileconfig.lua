@@ -4,9 +4,9 @@
 -- Copyright (c) 2011-2014 Jason Perkins and the Premake project
 --
 
-	premake.fileconfig = {}
-
 	local p = premake
+	p.fileconfig = {}
+
 	local fileconfig = p.fileconfig
 	local context = p.context
 	local project = p.project
@@ -55,9 +55,10 @@
 		environ.file = fcfg
 		context.compile(fcfg)
 
-		fcfg.project = prj
-		fcfg.configs = {}
-		fcfg.abspath = fname
+		fcfg.project   = prj
+		fcfg.workspace = prj.workspace
+		fcfg.configs   = {}
+		fcfg.abspath   = fname
 
 		context.basedir(fcfg, prj.location)
 
@@ -91,6 +92,7 @@
 
 	function fileconfig.addconfig(fcfg, cfg)
 		local prj = cfg.project
+		local wks = cfg.workspace
 
 		-- Create a new context object for this configuration-file pairing.
 		-- The context has the ability to pull out configuration settings
@@ -98,8 +100,8 @@
 
 		local environ = {}
 		local fsub = context.new(prj, environ)
-		context.copyFilters(fsub, cfg)
-		context.mergeFilters(fsub, fcfg)
+		context.copyFilters(fsub, fcfg)
+		context.mergeFilters(fsub, cfg)
 
 		fcfg.configs[cfg] = fsub
 
@@ -122,6 +124,7 @@
 		fsub.vpath = fcfg.vpath
 		fsub.config = cfg
 		fsub.project = prj
+		fsub.workspace = wks
 
 		-- Set the context's base directory to the project's file system
 		-- location. Any path tokens which are expanded in non-path fields
@@ -130,8 +133,7 @@
 
 		context.basedir(fsub, prj.location)
 
-		setmetatable(fsub, fileconfig.fsub_mt)
-
+		return setmetatable(fsub, fileconfig.fsub_mt)
 	end
 
 
@@ -184,7 +186,10 @@
 --
 
 	function fileconfig.hasFileSettings(fcfg)
-		for key, field in pairs(premake.fields) do
+		if not fcfg then
+			return false
+		end
+		for key, field in pairs(p.fields) do
 			if field.scopes[1] == "config" then
 				local value = fcfg[field.name]
 				if value then

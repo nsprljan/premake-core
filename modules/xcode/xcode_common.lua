@@ -7,9 +7,9 @@
 	local p = premake
 	local xcode = p.modules.xcode
 	local tree  = p.tree
-    local workspace = p.workspace
+	local workspace = p.workspace
 	local project = p.project
-    local config = p.config
+	local config = p.config
 	local fileconfig = p.fileconfig
 
 
@@ -79,6 +79,20 @@
 
 		return false
 	end
+
+--
+-- Return 'explicitFileType' if the given file is being set with 'compileas'
+--
+
+	function xcode.getfiletypekey(node, cfg)
+		if node.configs then
+			local filecfg = fileconfig.getconfig(node, cfg)
+			if filecfg and filecfg["compileas"] then
+				return "explicitFileType"
+			end
+		end
+		return "lastKnownFileType"
+	end
 --
 -- Return the Xcode type for a given file, based on the file extension.
 --
@@ -93,7 +107,11 @@
 		if node.configs then
 			local filecfg = fileconfig.getconfig(node, cfg)
 			if filecfg then
-				if filecfg.language == "ObjC" then
+				if p.languages.isc(filecfg.compileas) then
+					return "sourcecode.c.c"
+				elseif p.languages.iscpp(filecfg.compileas) then
+					return "sourcecode.cpp.cpp"
+				elseif filecfg.language == "ObjC" then
 					return "sourcecode.c.objc"
 				elseif 	filecfg.language == "ObjCpp" then
 					return "sourcecode.cpp.objcpp"
@@ -228,7 +246,7 @@
 		if type(overrides) == 'table' then
 			for name, value in pairs(overrides) do
 				-- Allow an override to remove a value by using false
-				settings[name] = iif(value ~= false, value, nil)
+				settings[name] = iif(not table.equals(value, { false }), value, nil)
 			end
 		end
 	end
@@ -244,12 +262,15 @@
 
 	function xcode.getproducttype(node)
 		local types = {
-			ConsoleApp  = "com.apple.product-type.tool",
-			WindowedApp = "com.apple.product-type.application",
-			StaticLib   = "com.apple.product-type.library.static",
-			SharedLib   = "com.apple.product-type.library.dynamic",
+			ConsoleApp   = "com.apple.product-type.tool",
+			WindowedApp  = "com.apple.product-type.application",
+			StaticLib    = "com.apple.product-type.library.static",
+			SharedLib    = "com.apple.product-type.library.dynamic",
+			OSXBundle    = "com.apple.product-type.bundle",
+			OSXFramework = "com.apple.product-type.framework",
+			XCTest       = "com.apple.product-type.bundle.unit-test",
 		}
-		return types[node.cfg.kind]
+		return types[iif(node.cfg.kind == "SharedLib" and node.cfg.sharedlibtype, node.cfg.sharedlibtype, node.cfg.kind)]
 	end
 
 
@@ -264,14 +285,38 @@
 
 	function xcode.gettargettype(node)
 		local types = {
-			ConsoleApp  = "\"compiled.mach-o.executable\"",
-			WindowedApp = "wrapper.application",
-			StaticLib   = "archive.ar",
-			SharedLib   = "\"compiled.mach-o.dylib\"",
+			ConsoleApp   = "\"compiled.mach-o.executable\"",
+			WindowedApp  = "wrapper.application",
+			StaticLib    = "archive.ar",
+			SharedLib    = "\"compiled.mach-o.dylib\"",
+			OSXBundle    = "wrapper.cfbundle",
+			OSXFramework = "wrapper.framework",
+			XCTest       = "wrapper.cfbundle",
 		}
-		return types[node.cfg.kind]
+		return types[iif(node.cfg.kind == "SharedLib" and node.cfg.sharedlibtype, node.cfg.sharedlibtype, node.cfg.kind)]
 	end
 
+--
+-- Return the Xcode debug information format for the current configuration
+--
+-- @param cfg
+--    The current configuration
+-- @returns
+--    The corresponding value of DEBUG_INFORMATION_FORMAT, or 'dwarf-with-dsym' if invalid
+--
+
+	function xcode.getdebugformat(cfg)
+		local formats = {
+			["Dwarf"]      = "dwarf",
+			["Default"]    = "dwarf-with-dsym",
+			["SplitDwarf"] = "dwarf-with-dsym",
+		}
+		local rval = "dwarf-with-dsym"
+		if cfg.debugformat then
+			rval = formats[cfg.debugformat] or rval
+		end
+		return rval
+	end
 
 --
 -- Return a unique file name for a project. Since Xcode uses .xcodeproj's to
@@ -287,7 +332,7 @@
 	function xcode.getxcodeprojname(prj)
 		-- if there is a workspace with matching name, then use "projectname1.xcodeproj"
 		-- just get something working for now
-		local fname = premake.filename(prj, ".xcodeproj")
+		local fname = p.filename(prj, ".xcodeproj")
 		return fname
 	end
 
@@ -336,7 +381,7 @@
 		-- create and cache a list of supported platforms
 		wks.xcode = { }
 
-		for prj in premake.workspace.eachproject(wks) do
+		for prj in p.workspace.eachproject(wks) do
 			-- need a configuration to get the target information
 			local cfg = project.getconfig(prj, prj.configurations[1], prj.platforms[1])
 
@@ -346,7 +391,7 @@
 				bundlepath = cfg.project.name
 			end
 
-			local node = premake.tree.new(path.getname(bundlepath))
+			local node = p.tree.new(path.getname(bundlepath))
 
 			node.cfg = cfg
 			node.id = xcode.newid(node.name, "product")
@@ -494,8 +539,8 @@
 						end
 						--end
 						end
-						_p(level,'%s /* %s */ = {isa = PBXFileReference; lastKnownFileType = %s; name = %s; path = %s; sourceTree = %s; };',
-							node.id, node.name, xcode.getfiletype(node, cfg), stringifySetting(node.name), stringifySetting(pth), stringifySetting(src))
+						_p(level,'%s /* %s */ = {isa = PBXFileReference; %s = %s; name = %s; path = %s; sourceTree = %s; };',
+							node.id, node.name, xcode.getfiletypekey(node, cfg), xcode.getfiletype(node, cfg), stringifySetting(node.name), stringifySetting(pth), stringifySetting(src))
 					end
 				end
 			end
@@ -553,6 +598,14 @@
 					return
 				end
 
+				local function isAggregateTarget(node)
+					local productsId = xcode.newid("Products")
+					return node.id == productsId and node.parent.project and node.parent.project.kind == "Utility"
+				end
+				if isAggregateTarget(node) then
+					return
+				end
+
 				settings[node.productgroupid or node.id] = function()
 					-- project references get special treatment
 					if node.parent == tr.projects then
@@ -564,7 +617,9 @@
 					_p(3,'isa = PBXGroup;')
 					_p(3,'children = (')
 					for _, childnode in ipairs(node.children) do
-						_p(4,'%s /* %s */,', childnode.id, childnode.name)
+						if not isAggregateTarget(childnode) then
+							_p(4,'%s /* %s */,', childnode.id, childnode.name)
+						end
 					end
 					_p(3,');')
 
@@ -598,9 +653,99 @@
 		end
 	end
 
+	local function xcode_GetBuildCommands(tr)
+		local buildCommandInfos = {}
+		tree.traverse(tr, {
+			onnode = function(node)
+				if node.buildcommandid then
+					local info = {
+						node = node,
+						inputs = { node.relpath },
+						outputs = {},
+						depends = {},
+						transact = false,
+					}
+					for cfg in project.eachconfig(tr.project) do
+						local filecfg = fileconfig.getconfig(node, cfg)
+						if filecfg then
+							for _, v in ipairs(filecfg.buildinputs) do
+								table.insert(info.inputs, project.getrelative(tr.project, v))
+							end
+							for _, v in ipairs(filecfg.buildoutputs) do
+								table.insert(info.outputs, project.getrelative(tr.project, v))
+							end
+						end
+					end
+					table.insert(buildCommandInfos, info)
+				end
+			end
+		})
+		for _, mine in ipairs(buildCommandInfos) do
+			for _, their in ipairs(buildCommandInfos) do
+				if mine ~= their then
+					for _, input in ipairs(mine.inputs) do
+						if table.contains(their.outputs, input) then
+							table.insert(mine.depends, their)
+							break
+						end
+					end
+				end
+			end
+		end
+		local buildCommands = {}
+		local leftover = #buildCommandInfos
+		while leftover > 0 do
+			local prev = leftover
+			for _, info in ipairs(buildCommandInfos) do
+				if not info.transact then
+					local transact = true
+					for _, depend in ipairs(info.depends) do
+						transact = depend.transact
+						if not transact then
+							break
+						end
+					end
+					if transact then
+						table.insert(buildCommands, info.node)
+						info.transact = true
+						leftover = leftover - 1
+					end
+				end
+			end
+			if prev == leftover then
+				error('detect circular reference.')
+			end
+		end
+		return buildCommands
+	end
 
-	function xcode.PBXNativeTarget(tr)
-		_p('/* Begin PBXNativeTarget section */')
+	local function xcode_PBXAggregateOrNativeTarget(tr, pbxTargetName)
+		local kinds = {
+			Aggregate = {
+				"Utility",
+			},
+			Native = {
+				"ConsoleApp",
+				"WindowedApp",
+				"SharedLib",
+				"StaticLib",
+			},
+		}
+		local hasTarget = false
+		for _, node in ipairs(tr.products.children) do
+			hasTarget = table.contains(kinds[pbxTargetName], node.cfg.kind)
+			if hasTarget then
+				break
+			end
+		end
+		if not hasTarget then
+			return
+		end
+
+		_p('/* Begin PBX%sTarget section */', pbxTargetName)
+
+		local buildCommands = xcode_GetBuildCommands(tr)
+
 		for _, node in ipairs(tr.products.children) do
 			local name = tr.project.name
 
@@ -622,18 +767,25 @@
 			end
 
 			_p(2,'%s /* %s */ = {', node.targetid, name)
-			_p(3,'isa = PBXNativeTarget;')
-			_p(3,'buildConfigurationList = %s /* Build configuration list for PBXNativeTarget "%s" */;', node.cfgsection, escapeSetting(name))
+			_p(3,'isa = PBX%sTarget;', pbxTargetName)
+			_p(3,'buildConfigurationList = %s /* Build configuration list for PBX%sTarget "%s" */;', node.cfgsection, pbxTargetName, escapeSetting(name))
 			_p(3,'buildPhases = (')
 			if hasBuildCommands('prebuildcommands') then
 				_p(4,'9607AE1010C857E500CD1376 /* Prebuild */,')
 			end
-			_p(4,'%s /* Resources */,', node.resstageid)
-			_p(4,'%s /* Sources */,', node.sourcesid)
+			for _, v in ipairs(buildCommands) do
+				_p(4,'%s /* Build "%s" */,', v.buildcommandid, v.name)
+			end
+			if pbxTargetName == "Native" then
+				_p(4,'%s /* Resources */,', node.resstageid)
+				_p(4,'%s /* Sources */,', node.sourcesid)
+			end
 			if hasBuildCommands('prelinkcommands') then
 				_p(4,'9607AE3510C85E7E00CD1376 /* Prelink */,')
 			end
-			_p(4,'%s /* Frameworks */,', node.fxstageid)
+			if pbxTargetName == "Native" then
+				_p(4,'%s /* Frameworks */,', node.fxstageid)
+			end
 			if hasBuildCommands('postbuildcommands') then
 				_p(4,'9607AE3710C85E8F00CD1376 /* Postbuild */,')
 			end
@@ -649,23 +801,37 @@
 
 			_p(3,'name = %s;', stringifySetting(name))
 
-			local p
-			if node.cfg.kind == "ConsoleApp" then
-				p = "$(HOME)/bin"
-			elseif node.cfg.kind == "WindowedApp" then
-				p = "$(HOME)/Applications"
-			end
-			if p then
-				_p(3,'productInstallPath = %s;', stringifySetting(p))
+			if pbxTargetName == "Native" then
+				local p
+				if node.cfg.kind == "ConsoleApp" then
+					p = "$(HOME)/bin"
+				elseif node.cfg.kind == "WindowedApp" then
+					p = "$(HOME)/Applications"
+				end
+				if p then
+					_p(3,'productInstallPath = %s;', stringifySetting(p))
+				end
 			end
 
 			_p(3,'productName = %s;', stringifySetting(name))
-			_p(3,'productReference = %s /* %s */;', node.id, node.name)
-			_p(3,'productType = %s;', stringifySetting(xcode.getproducttype(node)))
+			if pbxTargetName == "Native" then
+				_p(3,'productReference = %s /* %s */;', node.id, node.name)
+				_p(3,'productType = %s;', stringifySetting(xcode.getproducttype(node)))
+			end
 			_p(2,'};')
 		end
-		_p('/* End PBXNativeTarget section */')
+		_p('/* End PBX%sTarget section */', pbxTargetName)
 		_p('')
+	end
+
+
+	function xcode.PBXAggregateTarget(tr)
+		xcode_PBXAggregateOrNativeTarget(tr, "Aggregate")
+	end
+
+
+	function xcode.PBXNativeTarget(tr)
+		xcode_PBXAggregateOrNativeTarget(tr, "Native")
 	end
 
 
@@ -673,6 +839,25 @@
 		_p('/* Begin PBXProject section */')
 		_p(2,'08FB7793FE84155DC02AAC07 /* Project object */ = {')
 		_p(3,'isa = PBXProject;')
+		local capabilities = tr.project.xcodesystemcapabilities
+		if not table.isempty(capabilities) then
+			local keys = table.keys(capabilities)
+			table.sort(keys)
+			_p(3, 'attributes = {')
+			_p(4, 'TargetAttributes = {')
+			_p(5, '%s = {', tr.project.xcode.projectnode.targetid)
+			_p(6, 'SystemCapabilities = {')
+			for _, key in pairs(keys) do
+				_p(7, '%s = {', key)
+				_p(8, 'enabled = %d;', iif(capabilities[key], 1, 0))
+				_p(7, '};')
+			end
+			_p(6, '};')
+			_p(5, '};')
+			_p(4, '};')
+			_p(3, '};')
+		end
+
 		_p(3,'buildConfigurationList = 1DEB928908733DD80010E9CD /* Build configuration list for PBXProject "%s" */;', tr.name)
 		_p(3,'compatibilityVersion = "Xcode 3.2";')
 		_p(3,'hasScannedForEncodings = 1;')
@@ -771,6 +956,7 @@
 			end
 
 			if #commands > 0 then
+				table.insert(commands, 1, 'set -e') -- Tells the shell to exit when any command fails
 				commands = os.translateCommands(commands, p.MACOSX)
 				if not wrapperWritten then
 					_p('/* Begin PBXShellScriptBuildPhase section */')
@@ -794,11 +980,80 @@
 		end
 
 		doblock("9607AE1010C857E500CD1376", "Prebuild", "prebuildcommands")
+
+		local settings = {}
+		tree.traverse(tr, {
+			onnode = function(node)
+				if node.buildcommandid then
+					settings[node.buildcommandid] = function(level)
+						local commands = {}
+						local inputs = {}
+						local outputs = {}
+						for cfg in project.eachconfig(tr.project) do
+							local filecfg = fileconfig.getconfig(node, cfg)
+							if filecfg then
+								table.insert(commands, 'if [ "${CONFIGURATION}" = "' .. cfg.buildcfg .. '" ]; then')
+								if filecfg.buildmessage then
+									table.insert(commands, '\techo "' .. filecfg.buildmessage .. '"')
+								end
+								local cmds = os.translateCommandsAndPaths(filecfg.buildcommands, filecfg.project.basedir, filecfg.project.location)
+								for _, cmd in ipairs(cmds) do
+									table.insert(commands, '\t' .. cmd)
+								end
+								table.insert(commands, 'fi')
+								for _, v in ipairs(filecfg.buildinputs) do
+									inputs[v] = true
+								end
+								for _, v in ipairs(filecfg.buildoutputs) do
+									outputs[v] = true
+								end
+							end
+						end
+
+						if #commands > 0 then
+							table.insert(commands, 1, 'set -e') -- Tells the shell to exit when any command fails
+						end
+
+						_p(level,'%s /* Build "%s" */ = {', node.buildcommandid, node.name)
+						_p(level+1,'isa = PBXShellScriptBuildPhase;')
+						_p(level+1,'buildActionMask = 2147483647;')
+						_p(level+1,'files = (')
+						_p(level+1,');')
+						_p(level+1,'inputPaths = (');
+						_p(level+2,'"%s",', escapeSetting(node.relpath))
+						for v, _ in pairs(inputs) do
+							_p(level+2,'"%s",', escapeSetting(project.getrelative(tr.project, v)))
+						end
+						_p(level+1,');')
+						_p(level+1,'name = %s;', stringifySetting('Build "' .. node.name .. '"'))
+						_p(level+1,'outputPaths = (')
+						for v, _ in pairs(outputs) do
+							_p(level+2,'"%s",', escapeSetting(project.getrelative (tr.project, v)))
+						end
+						_p(level+1,');')
+						_p(level+1,'runOnlyForDeploymentPostprocessing = 0;');
+						_p(level+1,'shellPath = /bin/sh;');
+						_p(level+1,'shellScript = %s;', stringifySetting(table.concat(commands, '\n')))
+						_p(level,'};')
+					end
+				end
+			end
+		})
+
+		if not table.isempty(settings) then
+			if not wrapperWritten then
+				_p('/* Begin PBXShellScriptBuildPhase section */')
+				wrapperWritten = true
+			end
+			printSettingsTable(2, settings)
+		end
+
 		doblock("9607AE3510C85E7E00CD1376", "Prelink", "prelinkcommands")
 		doblock("9607AE3710C85E8F00CD1376", "Postbuild", "postbuildcommands")
 
 		if wrapperWritten then
 			_p('/* End PBXShellScriptBuildPhase section */')
+			_p('')
 		end
 	end
 
@@ -812,7 +1067,7 @@
 			_p(3,'files = (')
 			tree.traverse(tr, {
 				onleaf = function(node)
-					if xcode.getbuildcategory(node) == "Sources" then
+					if xcode.getbuildcategory(node) == "Sources" and node.buildid then
 						_p(4,'%s /* %s in Sources */,', node.buildid, node.name)
 					end
 				end
@@ -885,18 +1140,31 @@
 		settings['ALWAYS_SEARCH_USER_PATHS'] = 'NO'
 
 		if cfg.symbols ~= p.OFF then
-			settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+			settings['DEBUG_INFORMATION_FORMAT'] = xcode.getdebugformat(cfg)
 		end
 
 		if cfg.kind ~= "StaticLib" and cfg.buildtarget.prefix ~= '' then
 			settings['EXECUTABLE_PREFIX'] = cfg.buildtarget.prefix
 		end
 
-		--[[if cfg.targetextension then
-			local ext = cfg.targetextension
-			ext = iif(ext:startswith('.'), ext:sub(2), ext)
-			settings['EXECUTABLE_EXTENSION'] = ext
-		end]]
+		if cfg.buildtarget.extension then
+			local exts = {
+				WindowedApp  = "app",
+				SharedLib    = "dylib",
+				StaticLib    = "a",
+				OSXBundle    = "bundle",
+				OSXFramework = "framework",
+				XCTest       = "xctest",
+			}
+			local ext = cfg.buildtarget.extension:sub(2)
+			if ext ~= exts[iif(cfg.kind == "SharedLib" and cfg.sharedlibtype, cfg.sharedlibtype, cfg.kind)] then
+				if cfg.kind == "WindowedApp" or (cfg.kind == "SharedLib" and cfg.sharedlibtype) then
+					settings['WRAPPER_EXTENSION'] = ext
+				elseif cfg.kind == "SharedLib" or cfg.kind == "StaticLib" then
+					settings['EXECUTABLE_EXTENSION'] = ext
+				end
+			end
+		end
 
 		local outdir = path.getrelative(tr.project.location, path.getdirectory(cfg.buildtarget.relpath))
 		if outdir ~= "." then
@@ -909,13 +1177,15 @@
 			settings['INFOPLIST_FILE'] = config.findfile(cfg, path.getextension(tr.infoplist.name))
 		end
 
-		installpaths = {
+		local installpaths = {
 			ConsoleApp = '/usr/local/bin',
 			WindowedApp = '"$(HOME)/Applications"',
 			SharedLib = '/usr/local/lib',
 			StaticLib = '/usr/local/lib',
+			OSXBundle = '$(LOCAL_LIBRARY_DIR)/Bundles',
+			OSXFramework = '$(LOCAL_LIBRARY_DIR)/Frameworks',
 		}
-		settings['INSTALL_PATH'] = installpaths[cfg.kind]
+		settings['INSTALL_PATH'] = installpaths[iif(cfg.kind == "SharedLib" and cfg.sharedlibtype, cfg.sharedlibtype, cfg.kind)]
 
 		local fileNameList = {}
 		local file_tree = project.getsourcetree(tr.project)
@@ -942,7 +1212,28 @@
 		if not table.isempty(fileNameList) then
 			settings['EXCLUDED_SOURCE_FILE_NAMES'] = fileNameList
 		end
-		settings['PRODUCT_NAME'] = cfg.buildtarget.basename
+		settings['PRODUCT_NAME'] = iif(cfg.kind == "ConsoleApp" and cfg.buildtarget.extension, cfg.buildtarget.basename .. cfg.buildtarget.extension, cfg.buildtarget.basename)
+
+		if os.istarget(p.IOS) then
+			settings['SDKROOT'] = 'iphoneos'
+
+			settings['CODE_SIGN_IDENTITY[sdk=iphoneos*]'] = cfg.xcodecodesigningidentity or 'iPhone Developer'
+
+			local minOSVersion = project.systemversion(cfg)
+			if minOSVersion ~= nil then
+				settings['IPHONEOS_DEPLOYMENT_TARGET'] = minOSVersion
+			end
+
+			local families = {
+				['iPhone/iPod touch'] = '1',
+				['iPad'] = '2',
+				['Universal'] = '1,2',
+			}
+			local family = families[cfg.iosfamily]
+			if family then
+				settings['TARGETED_DEVICE_FAMILY'] = family
+			end
+		end
 
 		--ms not by default ...add it manually if you need it
 		--settings['COMBINE_HIDPI_IMAGES'] = 'YES'
@@ -956,6 +1247,58 @@
 		_p(3,'};')
 		printSetting(3, 'name', cfg.buildcfg);
 		_p(2,'};')
+	end
+
+
+	xcode.cLanguageStandards = {
+		["Default"] = "compiler-default",  -- explicit compiler default
+		["C89"] = "c89",
+		["C90"] = "c90",
+		["C99"] = "c99",
+		["C11"] = "c11",
+		["gnu89"] = "gnu89",
+		["gnu90"] = "gnu90",
+		["gnu99"] = "gnu99",
+		["gnu11"] = "gnu11"
+	}
+
+	function xcode.XCBuildConfiguration_CLanguageStandard(settings, cfg)
+		-- if no cppdialect is provided, don't set C dialect
+		-- projects without C dialect set will use compiler default
+		if not cfg.cdialect then
+			return
+		end
+
+		local cLanguageStandard = xcode.cLanguageStandards[cfg.cdialect]
+		if cLanguageStandard then
+			settings['GCC_C_LANGUAGE_STANDARD'] = cLanguageStandard
+		end
+	end
+
+
+	xcode.cppLanguageStandards = {
+		["Default"] = "compiler-default",  -- explicit compiler default
+		["C++98"] = "c++98",
+		["C++11"] = "c++11",
+		["C++14"] = "c++14",
+		["C++17"] = "c++1z",
+		["gnu++98"] = "gnu++98",
+		["gnu++11"] = "gnu++0x",  -- Xcode project GUI uses gnu++0x, but gnu++11 also works
+		["gnu++14"] = "gnu++14",
+		["gnu++17"] = "gnu++1z"
+	}
+
+	function xcode.XCBuildConfiguration_CppLanguageStandard(settings, cfg)
+		-- if no cppdialect is provided, don't set C++ dialect
+		-- projects without C++ dialect set will use compiler default
+		if not cfg.cppdialect then
+			return
+		end
+
+		local cppLanguageStandard = xcode.cppLanguageStandards[cfg.cppdialect]
+		if cppLanguageStandard then
+			settings['CLANG_CXX_LANGUAGE_STANDARD'] = cppLanguageStandard
+		end
 	end
 
 
@@ -987,13 +1330,8 @@
 			settings['COPY_PHASE_STRIP'] = 'NO'
 		end
 
-		settings['GCC_C_LANGUAGE_STANDARD'] = 'gnu99'
-
-		if cfg.flags['C++14'] then
-			settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++14'
-		elseif cfg.flags['C++11'] then
-			settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++0x'
-		end
+		xcode.XCBuildConfiguration_CLanguageStandard(settings, cfg)
+		xcode.XCBuildConfiguration_CppLanguageStandard(settings, cfg)
 
 		if cfg.exceptionhandling == p.OFF then
 			settings['GCC_ENABLE_CPP_EXCEPTIONS'] = 'NO'
@@ -1003,7 +1341,7 @@
 			settings['GCC_ENABLE_CPP_RTTI'] = 'NO'
 		end
 
-		if cfg.symbols == p.ON and not cfg.flags.NoEditAndContinue then
+		if cfg.symbols == p.ON and cfg.editandcontinue ~= "Off" then
 			settings['GCC_ENABLE_FIX_AND_CONTINUE'] = 'YES'
 		end
 
@@ -1027,6 +1365,10 @@
 
 		settings["GCC_SYMBOLS_PRIVATE_EXTERN"] = 'NO'
 
+		if cfg.unsignedchar ~= nil then
+			settings['GCC_CHAR_IS_UNSIGNED_CHAR'] = iif(cfg.unsignedchar, "YES", "NO")
+		end
+
 		if cfg.flags.FatalWarnings then
 			settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'YES'
 		end
@@ -1036,13 +1378,13 @@
 
 		local includedirs = project.getrelative(cfg.project, cfg.includedirs)
 		for i,v in ipairs(includedirs) do
-			cfg.includedirs[i] = premake.quoted(v)
+			cfg.includedirs[i] = p.quoted(v)
 		end
 		settings['USER_HEADER_SEARCH_PATHS'] = cfg.includedirs
 
 		local sysincludedirs = project.getrelative(cfg.project, cfg.sysincludedirs)
 		for i,v in ipairs(sysincludedirs) do
-			cfg.sysincludedirs[i] = premake.quoted(v)
+			cfg.sysincludedirs[i] = p.quoted(v)
 		end
 		if not table.isempty(cfg.sysincludedirs) then
 			table.insert(cfg.sysincludedirs, "$(inherited)")
@@ -1050,25 +1392,25 @@
 		settings['HEADER_SEARCH_PATHS'] = cfg.sysincludedirs
 
 		for i,v in ipairs(cfg.libdirs) do
-			cfg.libdirs[i] = premake.project.getrelative(cfg.project, cfg.libdirs[i])
+			cfg.libdirs[i] = p.project.getrelative(cfg.project, cfg.libdirs[i])
 		end
 		settings['LIBRARY_SEARCH_PATHS'] = cfg.libdirs
 
 		for i,v in ipairs(cfg.frameworkdirs) do
-			cfg.frameworkdirs[i] = premake.project.getrelative(cfg.project, cfg.frameworkdirs[i])
+			cfg.frameworkdirs[i] = p.project.getrelative(cfg.project, cfg.frameworkdirs[i])
 		end
 		settings['FRAMEWORK_SEARCH_PATHS'] = cfg.frameworkdirs
 
 		local objDir = path.getrelative(tr.project.location, cfg.objdir)
 		settings['OBJROOT'] = objDir
 
-		settings['ONLY_ACTIVE_ARCH'] = iif(premake.config.isDebugBuild(cfg), 'YES', 'NO')
+		settings['ONLY_ACTIVE_ARCH'] = iif(p.config.isDebugBuild(cfg), 'YES', 'NO')
 
 		-- build list of "other" C/C++ flags
 		local checks = {
-			["-ffast-math"]          = cfg.flags.FloatFast,
-			["-ffloat-store"]        = cfg.flags.FloatStrict,
-			["-fomit-frame-pointer"] = cfg.flags.NoFramePointer,
+			["-ffast-math"]             = cfg.floatingpoint == "Fast",
+			["-fomit-frame-pointer"]    = cfg.omitframepointer == "On",
+			["-fno-omit-frame-pointer"] = cfg.omitframepointer == "Off",
 		}
 
 		local flags = { }

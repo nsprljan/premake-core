@@ -147,7 +147,7 @@
 			for i = 1, n do
 				local v = arr[i]
 				if v then
-					func(v)
+					func(v, i)
 				end
 			end
 		end
@@ -197,13 +197,26 @@
 --
 
 	function table.indexof(tbl, obj)
-		for k, v in pairs(tbl) do
+		for k, v in ipairs(tbl) do
 			if v == obj then
 				return k
 			end
 		end
 	end
 
+
+--
+-- Looks for an object within a table. Returns the key if found,
+-- or nil if the object could not be found.
+--
+
+	function table.findKeyByValue(tbl, obj)
+		for k, v in pairs(tbl) do
+			if v == obj then
+				return k
+			end
+		end
+	end
 
 
 ---
@@ -255,7 +268,7 @@
 
 --
 -- Inserts a value into a table as both a list item and a key-value pair.
--- Useful for set operations.
+-- Useful for set operations. Returns false if the value already exists, true otherwise.
 --
 
 	function table.insertkeyed(tbl, pos, value)
@@ -263,8 +276,14 @@
 			value = pos
 			pos = #tbl + 1
 		end
+
+		if tbl[value] ~= nil then
+			return false
+		end
+
 		table.insert(tbl, pos, value)
 		tbl[value] = value
+		return true
 	end
 
 
@@ -283,7 +302,7 @@
 			local minindex = 1
 			local maxindex = #tbl + 1
 			while minindex < maxindex do
-				local index = minindex + math.floor((maxindex - minindex) / 2)
+				local index = minindex + ((maxindex - minindex) >> 1)
 				local test = tbl[index]
 				if fn(value, test) then
 					maxindex = index
@@ -401,12 +420,12 @@
 		if not translation then return {} end
 
 		local result = {}
-		for _, value in ipairs(arr) do
+		for i = 1, #arr do
 			local tvalue
 			if type(translation) == "function" then
-				tvalue = translation(value)
+				tvalue = translation(arr[i])
 			else
-				tvalue = translation[value]
+				tvalue = translation[arr[i]]
 			end
 			if (tvalue) then
 				table.insert(result, tvalue)
@@ -531,4 +550,53 @@
 			end
 		end
 		return true
+	end
+
+
+--
+-- Enumerate a table sorted by its keys.
+--
+	function spairs(t)
+		-- collect the keys
+		local keys = {}
+		for k in pairs(t) do
+			table.insert(keys, k)
+		end
+		table.sort(keys)
+
+		-- return the iterator function
+		local i = 0
+		return function()
+			i = i + 1
+			if keys[i] then
+				return keys[i], t[keys[i]]
+			end
+		end
+	end
+
+
+--
+-- Intersect two arrays and return a new array
+--
+	function table.intersect(a, b)
+		local result = {}
+		for _, v in ipairs(b) do
+			if table.indexof(a, v) then
+				table.insert(result, v)
+			end
+		end
+		return result
+	end
+
+--
+-- The difference of A and B is the set containing those elements that are in A but not in B
+--
+	function table.difference(a, b)
+		local result = {}
+		for _, v in ipairs(a) do
+			if not table.indexof(b, v) then
+				table.insert(result, v)
+			end
+		end
+		return result
 	end

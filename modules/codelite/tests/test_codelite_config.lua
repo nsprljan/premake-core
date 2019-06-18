@@ -6,7 +6,8 @@
 
 
 	local suite = test.declare("codelite_cproj_config")
-	local codelite = premake.modules.codelite
+	local p = premake
+	local codelite = p.modules.codelite
 
 ---------------------------------------------------------------------------
 -- Setup/Teardown
@@ -15,12 +16,14 @@
 	local wks, prj, cfg
 
 	function suite.setup()
-		premake.action.set("codelite")
-		premake.indent("  ")
-		wks, prj = test.createWorkspace()
+		p.action.set("codelite")
+		p.escaper(codelite.esc)
+		p.indent("  ")
+		wks = test.createWorkspace()
 	end
 
 	local function prepare()
+		prj = test.getproject(wks,1)
 		cfg = test.getconfig(prj, "Debug")
 	end
 
@@ -40,12 +43,15 @@
 		rtti "Off"
 		pic "On"
 		symbols "On"
-		flags { "NoBufferSecurityCheck", "C++11" }
+		language "C++"
+		cppdialect "C++11"
+		flags { "NoBufferSecurityCheck" }
+		forceincludes { "forced_include1.h", "forced_include2.h" }
 		buildoptions { "-opt1", "-opt2" }
 		prepare()
 		codelite.project.compiler(cfg)
 		test.capture [[
-      <Compiler Options="-O0;-fPIC;-g;-fno-exceptions;-fno-stack-protector;-std=c++11;-fno-rtti;-opt1;-opt2" C_Options="-O0;-fPIC;-g;-opt1;-opt2" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" UseDifferentPCHFlags="no" PCHFlags="">
+      <Compiler Options="-O0;-fPIC;-g;-std=c++11;-fno-exceptions;-fno-stack-protector;-fno-rtti;-include forced_include1.h;-include forced_include2.h;-opt1;-opt2" C_Options="-O0;-fPIC;-g;-include forced_include1.h;-include forced_include2.h;-opt1;-opt2" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" UseDifferentPCHFlags="no" PCHFlags="">
       </Compiler>
 		]]
 	end
@@ -89,20 +95,18 @@
 		codelite.project.linker(cfg)
 		test.capture [[
       <Linker Required="yes" Options="">
-        <LibraryPath Value="test" />
-        <LibraryPath Value="test2" />
+        <LibraryPath Value="test"/>
+        <LibraryPath Value="test2"/>
       </Linker>
 		]]
 	end
 
 	function suite.OnProjectCfg_Libs()
-		links { "lib", "lib2" }
+		links { "a", "b" }
 		prepare()
 		codelite.project.linker(cfg)
 		test.capture [[
-      <Linker Required="yes" Options="">
-        <Library Value="lib" />
-        <Library Value="lib2" />
+      <Linker Required="yes" Options="-la;-lb">
       </Linker>
 		]]
 	end
@@ -140,11 +144,13 @@
 	end
 
 	function suite.OnProjectCfg_Environment()
+		debugenvs { "ENV_ONE=1", "ENV_TWO=2" }
 		prepare()
 		codelite.project.environment(cfg)
 		test.capture(
 '      <Environment EnvVarSetName="&lt;Use Defaults&gt;" DbgSetName="&lt;Use Defaults&gt;">\n' ..
-'        <![CDATA[]]>\n' ..
+'        <![CDATA[ENV_ONE=1\n' ..
+'ENV_TWO=2]]>\n' ..
 '      </Environment>'
 		)
 	end
@@ -194,7 +200,22 @@ cmd2</StartupCommands>
 		]]
 	end
 
-	function suite.OnProject_PreBuild()
+	function suite.OnProject_PreBuild_Escaped()
+		prebuildcommands {
+			"touch \"./build/copyright\" && echo OK",
+			"cat \"./lib/copyright\" >> \"./build/copyright\""
+		}
+		prepare()
+		codelite.project.preBuild(prj)
+		test.capture [[
+      <PreBuild>
+        <Command Enabled="yes">touch "./build/copyright" &amp;&amp; echo OK</Command>
+        <Command Enabled="yes">cat "./lib/copyright" &gt;&gt; "./build/copyright"</Command>
+      </PreBuild>
+		]]
+	end
+
+	function suite.OnProject_PostBuild()
 		postbuildcommands { "cmd0", "cmd1" }
 		prepare()
 		codelite.project.postBuild(prj)
@@ -202,6 +223,21 @@ cmd2</StartupCommands>
       <PostBuild>
         <Command Enabled="yes">cmd0</Command>
         <Command Enabled="yes">cmd1</Command>
+      </PostBuild>
+		]]
+	end
+
+	function suite.OnProject_PostBuild_Escaped()
+		postbuildcommands {
+			"touch \"./build/copyright\" && echo OK",
+			"cat \"./lib/copyright\" >> \"./build/copyright\""
+		}
+		prepare()
+		codelite.project.postBuild(prj)
+		test.capture [[
+      <PostBuild>
+        <Command Enabled="yes">touch "./build/copyright" &amp;&amp; echo OK</Command>
+        <Command Enabled="yes">cat "./lib/copyright" &gt;&gt; "./build/copyright"</Command>
       </PostBuild>
 		]]
 	end
@@ -221,7 +257,8 @@ cmd2</StartupCommands>
 	end
 
 	function suite.OnProject_Completion()
-		flags { "C++11" }
+		language "C++"
+		cppdialect "C++11"
 		prepare()
 		codelite.project.completion(prj)
 		test.capture [[
@@ -231,5 +268,31 @@ cmd2</StartupCommands>
         <ClangPP/>
         <SearchPaths/>
       </Completion>
+		]]
+	end
+
+
+---------------------------------------------------------------------------
+-- Setup/Teardown
+---------------------------------------------------------------------------
+
+	function suite.OnProjectCfg_UnsignedCharOn()
+		unsignedchar "On"
+		prepare()
+		codelite.project.compiler(cfg)
+		test.capture [[
+      <Compiler Options="-funsigned-char" C_Options="-funsigned-char" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" UseDifferentPCHFlags="no" PCHFlags="">
+      </Compiler>
+		]]
+	end
+
+
+	function suite.OnProjectCfg_UnsignedCharOff()
+		unsignedchar "Off"
+		prepare()
+		codelite.project.compiler(cfg)
+		test.capture [[
+      <Compiler Options="-fno-unsigned-char" C_Options="-fno-unsigned-char" Assembler="" Required="yes" PreCompiledHeader="" PCHInCommandLine="no" UseDifferentPCHFlags="no" PCHFlags="">
+      </Compiler>
 		]]
 	end

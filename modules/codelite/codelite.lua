@@ -27,7 +27,7 @@
 	end
 
 	function codelite.esc(value)
-		local result = value:gsub('"', '\\&quot;')
+		local result = value:gsub('&', '&amp;')
 		result = result:gsub('<', '&lt;')
 		result = result:gsub('>', '&gt;')
 		return result
@@ -46,7 +46,7 @@
 		p.indent("  ")
 		p.escaper(codelite.esc)
 
-		if project.iscpp(prj) then
+		if project.isc(prj) or project.iscpp(prj) then
 			p.generate(prj, ".project", codelite.project.generate)
 		end
 	end

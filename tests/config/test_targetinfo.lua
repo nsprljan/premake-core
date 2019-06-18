@@ -4,8 +4,9 @@
 -- Copyright (c) 2011-2013 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("config_targetinfo")
-	local config = premake.config
+	local config = p.config
 
 
 --
@@ -15,7 +16,7 @@
 	local wks, prj
 
 	function suite.setup()
-		premake.action.set("test")
+		p.action.set("test")
 		wks, prj = test.createWorkspace()
 		system "macosx"
 	end
@@ -184,24 +185,6 @@
 
 
 --
--- Name should use ".exe" for Xbox360 executables.
---
-
-	function suite.nameUsesExe_onWindowsConsoleApp()
-		kind "ConsoleApp"
-		system "Xbox360"
-		i = prepare()
-		test.isequal("MyProject.exe", i.name)
-	end
-
-	function suite.nameUsesLib_onXbox360StaticLib()
-		kind "StaticLib"
-		system "Xbox360"
-		i = prepare()
-		test.isequal("MyProject.lib", i.name)
-	end
-
---
 -- Name should use a prefix if set.
 --
 
@@ -237,6 +220,44 @@
 
 
 --
+-- Bundle path should be set for macOS/iOS cocoa bundle.
+--
+
+	function suite.bundlepathSet_onMacSharedLibOSXBundle()
+		kind "SharedLib"
+		sharedlibtype "OSXBundle"
+		system "macosx"
+		i = prepare()
+		test.isequal("bin/Debug/MyProject.bundle/Contents/MacOS", path.getrelative(os.getcwd(), i.bundlepath))
+	end
+
+--
+-- Bundle path should be set for macOS/iOS cocoa unit test bundle.
+--
+
+	function suite.bundlepathSet_onMacSharedLibXCTest()
+		kind "SharedLib"
+		sharedlibtype "XCTest"
+		system "macosx"
+		i = prepare()
+		test.isequal("bin/Debug/MyProject.xctest/Contents/MacOS", path.getrelative(os.getcwd(), i.bundlepath))
+	end
+
+
+--
+-- Bundle path should be set for macOS/iOS framework.
+--
+
+	function suite.bundlepathSet_onMacSharedLibOSXFramework()
+		kind "SharedLib"
+		sharedlibtype "OSXFramework"
+		system "macosx"
+		i = prepare()
+		test.isequal("bin/Debug/MyProject.framework/Versions/A", path.getrelative(os.getcwd(), i.bundlepath))
+	end
+
+
+--
 -- Target extension is used if set.
 --
 
@@ -252,7 +273,7 @@
 --
 
 	function suite.appUsesExe_onDotNet()
-		_OS = "macosx"
+		_TARGET_OS = "macosx"
 		language "C#"
 		i = prepare()
 		test.isequal("MyProject.exe", i.name)
@@ -264,8 +285,8 @@
 -- .NET libraries should always default to ".dll" extensions.
 --
 
-	function suite.appUsesExe_onDotNet()
-		_OS = "macosx"
+	function suite.appUsesExe_onDotNetSharedLib()
+		_TARGET_OS = "macosx"
 		language "C#"
 		kind "SharedLib"
 		i = prepare()

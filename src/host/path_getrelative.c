@@ -6,6 +6,9 @@
 
 #include "premake.h"
 #include <string.h>
+#if PLATFORM_WINDOWS
+#include <ctype.h>
+#endif
 
 
 int path_getrelative(lua_State* L)
@@ -22,7 +25,11 @@ int path_getrelative(lua_State* L)
 	do_normalize(L, dst, p2);
 
 	/* same directory? */
+#if PLATFORM_WINDOWS
+	if (_stricmp(src, dst) == 0) {
+#else
 	if (strcmp(src, dst) == 0) {
+#endif
 		lua_pushstring(L, ".");
 		return 1;
 	}
@@ -41,7 +48,11 @@ int path_getrelative(lua_State* L)
 
 	last = -1;
 	i = 0;
+#if PLATFORM_WINDOWS
+	while (src[i] && dst[i] && tolower(src[i]) == tolower(dst[i])) {
+#else
 	while (src[i] && dst[i] && src[i] == dst[i]) {
+#endif
 		if (src[i] == '/') {
 			last = i;
 		}
@@ -51,6 +62,14 @@ int path_getrelative(lua_State* L)
 	/* if I end up with just the root of the filesystem, either a single
 	 * slash (/) or a drive letter (c:) then return the absolute path. */
 	if (last <= 0 || (last == 2 && src[1] == ':')) {
+		dst[strlen(dst) - 1] = '\0';
+		lua_pushstring(L, dst);
+		return 1;
+	}
+
+	/* Relative paths within a server can't climb outside the server root.
+	* If the paths don't share server name, return the absolute path. */
+	if (src[0] == '/' && src[1] == '/' && last == 1) {
 		dst[strlen(dst) - 1] = '\0';
 		lua_pushstring(L, dst);
 		return 1;

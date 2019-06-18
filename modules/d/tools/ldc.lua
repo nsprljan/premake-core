@@ -4,12 +4,13 @@
 -- Copyright (c) 2013-2015 Andrew Gough, Manu Evans, and the Premake project
 --
 
-	premake.tools.ldc = { }
+	local p = premake
+	p.tools.ldc = { }
 
-	local ldc = premake.tools.ldc
-	local project = premake.project
-	local config = premake.config
-    local d = premake.modules.d
+	local ldc = p.tools.ldc
+	local project = p.project
+	local config = p.config
+	local d = p.modules.d
 
 
 --
@@ -35,17 +36,33 @@
 --			mips = "-march=mips",	-- -march=mipsel?
 		},
 		flags = {
-			Deprecated		= "-d",
-			Documentation	= "-D",
-			FatalWarnings	= "-w", -- Use LLVM flag? : "-fatal-assembler-warnings",
-			GenerateHeader	= "-H",
-			GenerateJSON	= "-X",
-			NoBoundsCheck	= "-disable-boundscheck",
---			Release			= "-release",
-			RetainPaths		= "-op",
-			SymbolsLikeC	= "-gc",
-			UnitTest		= "-unittest",
-			Verbose			= "-v",
+			OmitDefaultLibrary		= "-mscrtlib=",
+			CodeCoverage			= "-cov",
+			Documentation			= "-D",
+			FatalWarnings			= "-w", -- Use LLVM flag? : "-fatal-assembler-warnings",
+			GenerateHeader			= "-H",
+			GenerateJSON			= "-X",
+--			Release					= "-release",
+			RetainPaths				= "-op",
+			SymbolsLikeC			= "-gc",
+			UnitTest				= "-unittest",
+			Verbose					= "-v",
+			AllTemplateInst			= "-allinst",
+			BetterC					= "-betterC",
+			Main					= "-main",
+			PerformSyntaxCheckOnly	= "-o-",
+			ShowGC					= "-vgc",
+			IgnorePragma			= "-ignore",
+		},
+		boundscheck = {
+			Off = "-boundscheck=off",
+			On = "-boundscheck=on",
+			SafeOnly = "-boundscheck=safeonly",
+		},
+		deprecatedfeatures = {
+			Allow = "-d",
+			Warn = "-dw",
+			Error = "-de",
 		},
 		floatingpoint = {
 			Fast = "-fp-contract=fast -enable-unsafe-fp-math",
@@ -69,10 +86,13 @@
 		},
 		warnings = {
 			Default = "-wi",
+			High = "-wi",
 			Extra = "-wi",	-- TODO: is there a way to get extra warnings?
 		},
 		symbols = {
 			On = "-g",
+			FastLink = "-g",
+			Full = "-g",
 		}
 	}
 
@@ -85,22 +105,45 @@
 			table.insert(flags, "-release")
 		end
 
-		-- TODO: When DMD gets CRT options, map StaticRuntime and DebugRuntime
+		if not cfg.flags.OmitDefaultLibrary then
+			local releaseruntime = not config.isDebugBuild(cfg)
+			local staticruntime = true
+			if cfg.staticruntime == "Off" then
+				staticruntime = false
+			end
+			if cfg.runtime == "Debug" then
+				releaseruntime = false
+			elseif cfg.runtime == "Release" then
+				releaseruntime = true
+			end
+
+			if (cfg.staticruntime and cfg.staticruntime ~= "Default") or (cfg.runtime and cfg.runtime ~= "Default") then
+				if staticruntime == true and releaseruntime == true then
+					table.insert(flags, "-mscrtlib=libcmt")
+				elseif staticruntime == true and releaseruntime == false then
+					table.insert(flags, "-mscrtlib=libcmtd")
+				elseif staticruntime == false and releaseruntime == true then
+					table.insert(flags, "-mscrtlib=msvcrt")
+				elseif staticruntime == false and releaseruntime == false then
+					table.insert(flags, "-mscrtlib=msvcrtd")
+				end
+			end
+		end
 
 		if cfg.flags.Documentation then
 			if cfg.docname then
-				table.insert(flags, "-Df=" .. premake.quoted(cfg.docname))
+				table.insert(flags, "-Df=" .. p.quoted(cfg.docname))
 			end
 			if cfg.docdir then
-				table.insert(flags, "-Dd=" .. premake.quoted(cfg.docdir))
+				table.insert(flags, "-Dd=" .. p.quoted(cfg.docdir))
 			end
 		end
 		if cfg.flags.GenerateHeader then
 			if cfg.headername then
-				table.insert(flags, "-Hf=" .. premake.quoted(cfg.headername))
+				table.insert(flags, "-Hf=" .. p.quoted(cfg.headername))
 			end
 			if cfg.headerdir then
-				table.insert(flags, "-Hd=" .. premake.quoted(cfg.headerdir))
+				table.insert(flags, "-Hd=" .. p.quoted(cfg.headerdir))
 			end
 		end
 
@@ -148,7 +191,21 @@
 		local result = {}
 		for _, dir in ipairs(dirs) do
 			dir = project.getrelative(cfg.project, dir)
-			table.insert(result, '-I=' .. premake.quoted(dir))
+			table.insert(result, '-I=' .. p.quoted(dir))
+		end
+		return result
+	end
+
+
+--
+-- Decorate import file search paths for the DMD command line.
+--
+
+	function ldc.getstringimportdirs(cfg, dirs)
+		local result = {}
+		for _, dir in ipairs(dirs) do
+			dir = project.getrelative(cfg.project, dir)
+			table.insert(result, '-J=' .. p.quoted(dir))
 		end
 		return result
 	end
@@ -222,7 +279,7 @@
 				-- skip external project references, since I have no way
 				-- to know the actual output target path
 				if not link.project.external then
-					if link.kind == premake.STATICLIB then
+					if link.kind == p.STATICLIB then
 						-- Don't use "-l" flag when linking static libraries; instead use
 						-- path/libname.a to avoid linking a shared library of the same
 						-- name if one is present

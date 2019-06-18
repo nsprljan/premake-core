@@ -26,6 +26,8 @@
 			"universal",
 			p.X86,
 			p.X86_64,
+			p.ARM,
+			p.ARM64,
 		},
 		aliases = {
 			i386  = p.X86,
@@ -56,17 +58,6 @@
 		name = "buildaction",
 		scope = "config",
 		kind = "string",
-		allowed = {
-			"Application",
-			"Compile",
-			"Component",
-			"Copy",
-			"Embed",
-			"Form",
-			"None",
-			"Resource",
-			"UserControl",
-		},
 	}
 
 	api.register {
@@ -120,7 +111,7 @@
 		scope = { "config", "rule" },
 		kind = "list:path",
 		tokens = true,
-		pathVars = true,
+		pathVars = false,
 	}
 
 	api.register {
@@ -128,7 +119,7 @@
 		scope = "config",
 		kind = "list:path",
 		tokens = true,
-		pathVars = true,
+		pathVars = false,
 	}
 
 	api.register {
@@ -144,6 +135,7 @@
 		kind = "string",
 		allowed = {
 			"Default",
+			"ASCII",
 			"MBCS",
 			"Unicode",
 		}
@@ -183,16 +175,20 @@
 	}
 
 	api.register {
-		name = "configmap",
-		scope = "project",
-		kind = "list:keyed:array:string",
+		name = "compileas",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"C",
+			"C++",
+		}
 	}
 
 	api.register {
-		name = "configfile",
-		scope = "config",
-		kind = "string",
-		tokens = true,
+		name = "configmap",
+		scope = "project",
+		kind = "list:keyed:array:string",
 	}
 
 	api.register {
@@ -214,6 +210,7 @@
 		kind = "list:string",
 		tokens = true,
 		pathVars = true,
+		allowDuplicates = true,
 	}
 
 	api.register {
@@ -258,7 +255,10 @@
 		scope = "config",
 		kind = "string",
 		allowed = {
+			"Default",
 			"c7",
+			"Dwarf",
+			"SplitDwarf",
 		},
 	}
 
@@ -355,13 +355,6 @@
 	}
 
 	api.register {
-		name = "deploymentoptions",
-		scope = "config",
-		kind = "list:string",
-		tokens = true,
-	}
-
-	api.register {
 		name = "disablewarnings",
 		scope = "config",
 		kind = "list:string",
@@ -372,6 +365,18 @@
 		name = "display",
 		scope = "rule",
 		kind = "string",
+	}
+
+	api.register {
+		name = "dpiawareness",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"None",
+			"High",
+			"HighPerMonitor",
+		}
 	}
 
 	api.register {
@@ -393,7 +398,8 @@
 			"Default",
 			"On",
 			"Off",
-			"SEH"
+			"SEH",
+			"CThrow",
 		},
 	}
 
@@ -479,8 +485,7 @@
 			"No64BitChecks",
 			"NoCopyLocal",
 			"NoEditAndContinue",   -- DEPRECATED
-			"NoExceptions",        -- DEPRECATED
-			"NoFramePointer",
+			"NoFramePointer",      -- DEPRECATED
 			"NoImplicitLink",
 			"NoImportLib",
 			"NoIncrementalLink",
@@ -489,7 +494,6 @@
 			"NoNativeWChar",       -- DEPRECATED
 			"NoPCH",
 			"NoRuntimeChecks",
-			"NoRTTI",              -- DEPRECATED
 			"NoBufferSecurityCheck",
 			"NoWarnings",          -- DEPRECATED
 			"OmitDefaultLibrary",
@@ -498,20 +502,17 @@
 			"OptimizeSpeed",       -- DEPRECATED
 			"RelativeLinks",
 			"ReleaseRuntime",      -- DEPRECATED
-			"SEH",                 -- DEPRECATED
 			"ShadowedVariables",
-			"StaticRuntime",
+			"StaticRuntime",       -- DEPRECATED
 			"Symbols",             -- DEPRECATED
 			"UndefinedIdentifiers",
-			"Unicode",             -- DEPRECATED
-			"Unsafe",              -- DEPRECATED
-			"WinMain",
+			"WinMain",             -- DEPRECATED
 			"WPF",
-			"C++11",
-			"C++14",
-			"C90",
-			"C99",
-			"C11",
+			"C++11",               -- DEPRECATED
+			"C++14",               -- DEPRECATED
+			"C90",                 -- DEPRECATED
+			"C99",                 -- DEPRECATED
+			"C11",                 -- DEPRECATED
 		},
 		aliases = {
 			FatalWarnings = { "FatalWarnings", "FatalCompileWarnings", "FatalLinkWarnings" },
@@ -593,6 +594,12 @@
 	}
 
 	api.register {
+		name = "csversion",
+		scope = "config",
+		kind = "string",
+	}
+
+	api.register {
 		name = "gccprefix",
 		scope = "config",
 		kind = "string",
@@ -668,13 +675,13 @@
 		kind = "list:directory",
 		tokens = true,
 	}
-	
+
 	api.register {
 		name = "intrinsics",
 		scope = "config",
 		kind = "boolean"
 	}
-	
+
 	api.register {
 		name = "bindirs",
 		scope = "config",
@@ -698,6 +705,17 @@
 	}
 
 	api.register {
+		name = "sharedlibtype",
+		scope = "project",
+		kind = "string",
+		allowed = {
+			"OSXBundle",
+			"OSXFramework",
+			"XCTest",
+		},
+	}
+
+	api.register {
 		name = "language",
 		scope = "project",
 		kind = "string",
@@ -705,7 +723,49 @@
 			"C",
 			"C++",
 			"C#",
-		},
+			"F#"
+		}
+	}
+
+	api.register {
+		name = "cdialect",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"C89",
+			"C90",
+			"C99",
+			"C11",
+			"gnu89",
+			"gnu90",
+			"gnu99",
+			"gnu11",
+		}
+	}
+
+	api.register {
+		name = "cppdialect",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"C++latest",
+			"C++98",
+			"C++0x",
+			"C++11",
+			"C++1y",
+			"C++14",
+			"C++1z",
+			"C++17",
+			"gnu++98",
+			"gnu++0x",
+			"gnu++11",
+			"gnu++1y",
+			"gnu++14",
+			"gnu++1z",
+			"gnu++17",
+		}
 	}
 
 	api.register {
@@ -793,8 +853,15 @@
 
 	api.register {
 		name = "nuget",
-		scope = "project",
+		scope = "config",
 		kind = "list:string",
+		tokens = true,
+	}
+
+	api.register {
+		name = "nugetsource",
+		scope = "project",
+		kind = "string",
 		tokens = true,
 	}
 
@@ -952,6 +1019,16 @@
 	}
 
 	api.register {
+		name = "resourcegenerator",
+		scope = "project",
+		kind = "string",
+        allowed = {
+            "internal",
+            "public"
+        }
+	}
+
+	api.register {
 		name = "rtti",
 		scope = "config",
 		kind = "string",
@@ -973,6 +1050,17 @@
 		scope = "workspace",
 		kind = "string",
 		tokens = true,
+	}
+
+	api.register {
+		name = "staticruntime",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
 	}
 
 	api.register {
@@ -1035,19 +1123,31 @@
 			"aix",
 			"bsd",
 			"haiku",
+			"ios",
 			"linux",
 			"macosx",
 			"solaris",
 			"wii",
 			"windows",
-			"xbox360",
 		},
 	}
 
 	api.register {
 		name = "systemversion",
-		scope = "project",
+		scope = "config",
 		kind = "string",
+	}
+
+	api.register {
+		name = "tags",
+		scope = "config",
+		kind = "list:string",
+	}
+
+	api.register {
+		name = "tailcalls",
+		scope = "config",
+		kind = "boolean"
 	}
 
 	api.register {
@@ -1093,7 +1193,9 @@
 			value = value:lower()
 			local tool, version = p.tools.canonical(value)
 			if tool then
-				return value
+				return p.tools.normalize(value)
+			else
+				return nil
 			end
 		end,
 	}
@@ -1111,7 +1213,7 @@
 		tokens = true,
 	}
 
- 	api.register {
+	api.register {
 		name = "usingdirs",
 		scope = "config",
 		kind = "list:directory",
@@ -1158,6 +1260,25 @@
 	}
 
 	api.register {
+		name = "isaextensions",
+		scope = "config",
+		kind = "list:string",
+		allowed = {
+			"MOVBE",
+			"POPCNT",
+			"PCLMUL",
+			"LZCNT",
+			"BMI",
+			"BMI2",
+			"F16C",
+			"AES",
+			"FMA",
+			"FMA4",
+			"RDRND",
+		}
+	}
+
+	api.register {
 		name = "vpaths",
 		scope = "project",
 		kind = "list:keyed:list:path",
@@ -1172,6 +1293,7 @@
 		allowed = {
 			"Off",
 			"Default",
+			"High",
 			"Extra",
 		}
 	}
@@ -1188,6 +1310,69 @@
 		kind = "boolean",
 	}
 
+	api.register {
+		name = "preferredtoolarchitecture",
+		scope = "workspace",
+		kind = "string",
+		allowed = {
+			"Default",
+			p.X86,
+			p.X86_64,
+		}
+	}
+
+	api.register {
+		name = "unsignedchar",
+		scope = "config",
+		kind = "boolean",
+	}
+
+	p.api.register {
+		name = "structmemberalign",
+		scope = "config",
+		kind = "integer",
+		allowed = {
+			"1",
+			"2",
+			"4",
+			"8",
+			"16",
+		}
+	}
+
+	api.register {
+		name = "omitframepointer",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "visibility",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"Hidden",
+			"Internal",
+			"Protected"
+		}
+	}
+
+	api.register {
+		name = "inlinesvisibility",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"Hidden"
+		}
+	}
+
 -----------------------------------------------------------------------------
 --
 -- Field name aliases for backward compatibility
@@ -1199,7 +1384,6 @@
 	api.alias("buildmessage", "buildMessage")
 	api.alias("buildoutputs", "buildOutputs")
 	api.alias("cleanextensions", "cleanExtensions")
-	api.alias("configfile", "configFile")
 	api.alias("dotnetframework", "framework")
 	api.alias("editandcontinue", "editAndContinue")
 	api.alias("fileextension", "fileExtension")
@@ -1213,9 +1397,9 @@
 --
 -----------------------------------------------------------------------------
 
-	-- 09 Apr 2013
+	-- 13 Apr 2017
 
-	api.deprecateField("buildrule", nil,
+	api.deprecateField("buildrule", 'Use `buildcommands`, `buildoutputs`, and `buildmessage` instead.',
 	function(value)
 		if value.description then
 			buildmessage(value.description)
@@ -1225,83 +1409,119 @@
 	end)
 
 
-	-- 17 Jun 2013
-
-	api.deprecateValue("flags", "Component", nil,
+	api.deprecateValue("flags", "Component", 'Use `buildaction "Component"` instead.',
 	function(value)
 		buildaction "Component"
 	end)
 
 
-	-- 26 Sep 2013
-
-	api.deprecateValue("flags", { "EnableSSE", "EnableSSE2" }, nil,
+	api.deprecateValue("flags", "EnableSSE", 'Use `vectorextensions "SSE"` instead.',
 	function(value)
-		vectorextensions(value:sub(7))
+		vectorextensions("SSE")
 	end,
 	function(value)
 		vectorextensions "Default"
 	end)
 
 
-	api.deprecateValue("flags", { "FloatFast", "FloatStrict" }, nil,
+	api.deprecateValue("flags", "EnableSSE2", 'Use `vectorextensions "SSE2"` instead.',
 	function(value)
-		floatingpoint(value:sub(6))
+		vectorextensions("SSE2")
+	end,
+	function(value)
+		vectorextensions "Default"
+	end)
+
+
+	api.deprecateValue("flags", "FloatFast", 'Use `floatingpoint "Fast"` instead.',
+	function(value)
+		floatingpoint("Fast")
 	end,
 	function(value)
 		floatingpoint "Default"
 	end)
 
 
-	api.deprecateValue("flags", { "NativeWChar", "NoNativeWChar" }, nil,
+	api.deprecateValue("flags", "FloatStrict", 'Use `floatingpoint "Strict"` instead.',
 	function(value)
-		local map = { NativeWChar = "On", NoNativeWChar = "Off" }
-		nativewchar(map[value] or "Default")
+		floatingpoint("Strict")
+	end,
+	function(value)
+		floatingpoint "Default"
+	end)
+
+
+	api.deprecateValue("flags", "NativeWChar", 'Use `nativewchar "On"` instead."',
+	function(value)
+		nativewchar("On")
 	end,
 	function(value)
 		nativewchar "Default"
 	end)
 
 
-	api.deprecateValue("flags", { "Optimize", "OptimizeSize", "OptimizeSpeed" }, nil,
+	api.deprecateValue("flags", "NoNativeWChar", 'Use `nativewchar "Off"` instead."',
 	function(value)
-		local map = { Optimize = "On", OptimizeSize = "Size", OptimizeSpeed = "Speed" }
-		optimize (map[value] or "Off")
+		nativewchar("Off")
 	end,
 	function(value)
-		optimize "Off"
+		nativewchar "Default"
 	end)
 
-	api.deprecateValue("flags", { "ReleaseRuntime" }, nil,
-	function(value)
-		runtime 'Release'
-	end,
-	function(value)
-	end)
 
-	api.deprecateValue("flags", { "Optimise", "OptimiseSize", "OptimiseSpeed" }, nil,
+	api.deprecateValue("flags", "Optimize", 'Use `optimize "On"` instead.',
 	function(value)
-		local map = { Optimise = "On", OptimiseSize = "Size", OptimiseSpeed = "Speed" }
-		optimize (map[value] or "Off")
+		optimize ("On")
 	end,
 	function(value)
 		optimize "Off"
 	end)
 
 
-	api.deprecateValue("flags", { "ExtraWarnings", "NoWarnings" }, nil,
+	api.deprecateValue("flags", "OptimizeSize", 'Use `optimize "Size"` instead.',
 	function(value)
-		local map = { ExtraWarnings = "Extra", NoWarnings = "Off" }
-		warnings (map[value] or "Default")
+		optimize ("Size")
+	end,
+	function(value)
+		optimize "Off"
+	end)
+
+
+	api.deprecateValue("flags", "OptimizeSpeed", 'Use `optimize "Speed"` instead.',
+	function(value)
+		optimize ("Speed")
+	end,
+	function(value)
+		optimize "Off"
+	end)
+
+
+	api.deprecateValue("flags", "ReleaseRuntime", 'Use `runtime "Release"` instead.',
+	function(value)
+		runtime "Release"
+	end,
+	function(value)
+	end)
+
+
+	api.deprecateValue("flags", "ExtraWarnings", 'Use `warnings "Extra"` instead.',
+	function(value)
+		warnings "Extra"
 	end,
 	function(value)
 		warnings "Default"
 	end)
 
 
-	-- 10 Nov 2014
+	api.deprecateValue("flags", "NoWarnings", 'Use `warnings "Off"` instead.',
+	function(value)
+		warnings "Off"
+	end,
+	function(value)
+		warnings "Default"
+	end)
 
-	api.deprecateValue("flags", "Managed", nil,
+	api.deprecateValue("flags", "Managed", 'Use `clr "On"` instead.',
 	function(value)
 		clr "On"
 	end,
@@ -1310,7 +1530,7 @@
 	end)
 
 
-	api.deprecateValue("flags", "NoEditAndContinue", nil,
+	api.deprecateValue("flags", "NoEditAndContinue", 'Use editandcontinue "Off"` instead.',
 	function(value)
 		editandcontinue "Off"
 	end,
@@ -1318,49 +1538,6 @@
 		editandcontinue "On"
 	end)
 
-
-	api.deprecateValue("flags", "NoExceptions", 'Use `exceptionhandling "Off"` instead',
-	function(value)
-		exceptionhandling "Off"
-	end,
-	function(value)
-		exceptionhandling "On"
-	end)
-
-
-	api.deprecateValue("flags", "NoRTTI", 'Use `rtti "Off"` instead',
-	function(value)
-		rtti "Off"
-	end,
-	function(value)
-		rtti "On"
-	end)
-
-	api.deprecateValue("flags", "SEH", 'Use `exceptionhandling "SEH"` instead',
-	function(value)
-		exceptionhandling "SEH"
-	end,
-	function(value)
-		exceptionhandling "Default"
-	end)
-
-	api.deprecateValue("flags", "Unsafe", 'Use `clr "Unsafe"` instead',
-	function(value)
-		clr "Unsafe"
-	end,
-	function(value)
-		clr "On"
-	end)
-
-	-- 18 Dec 2015
-
-	api.deprecateValue("flags", "Unicode", 'Use `characterset "Unicode"` instead',
-	function(value)
-		characterset "Unicode"
-	end,
-	function(value)
-		characterset "Default"
-	end)
 
 	-- 21 June 2016
 
@@ -1373,6 +1550,78 @@
 	end)
 
 
+	-- 31 January 2017
+
+	api.deprecateValue("flags", "C++11", 'Use `cppdialect "C++11"` instead',
+	function(value)
+		cppdialect "C++11"
+	end,
+	function(value)
+		cppdialect "Default"
+	end)
+
+	api.deprecateValue("flags", "C++14", 'Use `cppdialect "C++14"` instead',
+	function(value)
+		cppdialect "C++14"
+	end,
+	function(value)
+		cppdialect "Default"
+	end)
+
+	api.deprecateValue("flags", "C90",   'Use `cdialect "gnu90"` instead',
+	function(value)
+		cdialect "gnu90"
+	end,
+	function(value)
+		cdialect "Default"
+	end)
+
+	api.deprecateValue("flags", "C99",   'Use `cdialect "gnu99"` instead',
+	function(value)
+		cdialect "gnu99"
+	end,
+	function(value)
+		cdialect "Default"
+	end)
+
+	api.deprecateValue("flags", "C11",   'Use `cdialect "gnu11"` instead',
+	function(value)
+		cdialect "gnu11"
+	end,
+	function(value)
+		cdialect "Default"
+	end)
+
+
+	-- 13 April 2017
+
+	api.deprecateValue("flags", "WinMain", 'Use `entrypoint "WinMainCRTStartup"` instead',
+	function(value)
+		entrypoint "WinMainCRTStartup"
+	end,
+	function(value)
+		entrypoint "mainCRTStartup"
+	end)
+
+	-- 31 October 2017
+
+	api.deprecateValue("flags", "StaticRuntime", 'Use `staticruntime "On"` instead',
+	function(value)
+		staticruntime "On"
+	end,
+	function(value)
+		staticruntime "Default"
+	end)
+
+	-- 08 April 2018
+
+	api.deprecateValue("flags", "NoFramePointer", 'Use `omitframepointer "On"` instead.',
+	function(value)
+		omitframepointer("On")
+	end,
+	function(value)
+		omitframepointer("Default")
+	end)
 
 -----------------------------------------------------------------------------
 --
@@ -1382,6 +1631,7 @@
 
 	newoption
 	{
+		category	= "compilers",
 		trigger     = "cc",
 		value       = "VALUE",
 		description = "Choose a C/C++ compiler set",
@@ -1393,6 +1643,7 @@
 
 	newoption
 	{
+		category	= "compilers",
 		trigger     = "dotnet",
 		value       = "VALUE",
 		description = "Choose a .NET compiler set",
@@ -1407,6 +1658,12 @@
 	{
 		trigger     = "fatal",
 		description = "Treat warnings from project scripts as errors"
+	}
+
+    newoption
+	{
+		trigger     = "debugger",
+		description = "Start MobDebug remote debugger. Works with ZeroBrane Studio"
 	}
 
 	newoption
@@ -1444,6 +1701,7 @@
 			{ "bsd",      "OpenBSD, NetBSD, or FreeBSD" },
 			{ "haiku",    "Haiku" },
 			{ "hurd",     "GNU/Hurd" },
+			{ "ios",      "iOS" },
 			{ "linux",    "Linux" },
 			{ "macosx",   "Apple Mac OS X" },
 			{ "solaris",  "Solaris" },
@@ -1471,6 +1729,13 @@
 		description = "Display version information"
 	}
 
+	if http ~= nil then
+		newoption {
+			trigger = "insecure",
+			description = "forfit SSH certification checks."
+		}
+	end
+
 
 -----------------------------------------------------------------------------
 --
@@ -1485,6 +1750,7 @@
 	exceptionhandling "Default"
 	rtti "Default"
 	symbols "Default"
+	nugetsource "https://api.nuget.org/v3/index.json"
 
 	-- Setting a default language makes some validation easier later
 
@@ -1502,27 +1768,39 @@
 
 	-- Add variations for other Posix-like systems.
 
-	filter { "system:MacOSX", "kind:SharedLib" }
+	filter { "system:darwin", "kind:WindowedApp" }
+		targetextension ".app"
+
+	filter { "system:darwin", "kind:SharedLib" }
 		targetextension ".dylib"
+
+	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:OSXBundle" }
+		targetprefix ""
+		targetextension ".bundle"
+
+	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:OSXFramework" }
+		targetprefix ""
+		targetextension ".framework"
+
+	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:XCTest" }
+		targetprefix ""
+		targetextension ".xctest"
 
 	-- Windows and friends.
 
-	filter { "system:Windows or language:C#", "kind:ConsoleApp or WindowedApp" }
+	filter { "system:Windows or language:C# or language:F#", "kind:ConsoleApp or WindowedApp" }
 		targetextension ".exe"
 
-	filter { "system:Xbox360", "kind:ConsoleApp or WindowedApp" }
-		targetextension ".exe"
-
-	filter { "system:Windows or Xbox360", "kind:SharedLib" }
+	filter { "system:Windows", "kind:SharedLib" }
 		targetprefix ""
 		targetextension ".dll"
 		implibextension ".lib"
 
-	filter { "system:Windows or Xbox360", "kind:StaticLib" }
+	filter { "system:Windows", "kind:StaticLib" }
 		targetprefix ""
 		targetextension ".lib"
 
-	filter { "language:C#", "kind:SharedLib" }
+	filter { "language:C# or language:F#", "kind:SharedLib" }
 		targetprefix ""
 		targetextension ".dll"
 		implibextension ".dll"
@@ -1530,7 +1808,10 @@
 	filter { "kind:SharedLib", "system:not Windows" }
 		pic "On"
 
-	filter { "system:macosx" }
+	filter { "system:darwin" }
 		toolset "clang"
+
+	filter { "platforms:Win64" }
+		architecture "x86_64"
 
 	filter {}

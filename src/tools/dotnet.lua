@@ -5,10 +5,11 @@
 --
 
 
-	premake.tools.dotnet = {}
-	local dotnet = premake.tools.dotnet
-	local project = premake.project
-	local config = premake.config
+	local p = premake
+	p.tools.dotnet = {}
+	local dotnet = p.tools.dotnet
+	local project = p.project
+	local config = p.config
 
 
 --
@@ -40,17 +41,21 @@
 		-- Determine the build action for the file, falling back to the file
 		-- extension if no explicit action is available.
 
-		if fcfg.buildaction == "Compile" or ext == ".cs" then
+		if fcfg.buildaction == "Compile" or ext == ".cs" or ext == ".fs" then
 			info.action = "Compile"
 		elseif fcfg.buildaction == "Embed" or ext == ".resx" then
 			info.action = "EmbeddedResource"
-		elseif fcfg.buildaction == "Copy" or ext == ".asax" or ext == ".aspx" or ext == ".dll" then
+		elseif fcfg.buildaction == "Copy" or ext == ".asax" or ext == ".aspx" or ext == ".dll" or ext == ".tt" then
 			info.action = "Content"
 		elseif fcfg.buildaction == "Resource" then
 			info.action = "Resource"
 		elseif ext == ".xaml" then
 			if fcfg.buildaction == "Application" or path.getbasename(fname) == "App" then
-				info.action = "ApplicationDefinition"
+				if fcfg.project.kind == p.SHAREDLIB then
+					info.action = "None"
+				else
+					info.action = "ApplicationDefinition"
+				end
 			else
 				info.action = "Page"
 			end
@@ -112,13 +117,20 @@
 					info.SubType = "Form"
 				end
 
+				testname = basename .. ".tt"
+				if project.hasfile(fcfg.project, testname) then
+					info.AutoGen = "True"
+					info.DesignTime = "True"
+					info.DependentUpon = testname
+				end
+
 			end
 
 			-- Allow C# object type build actions to override the default
 			if fcfg.buildaction == "Component" or
 			   fcfg.buildaction == "Form" or
 			   fcfg.buildaction == "UserControl"
-		   then
+			then
 				info.SubType = fcfg.buildaction
 			end
 
@@ -148,7 +160,15 @@
 				testname = basename .. ".Designer.cs"
 				if project.hasfile(fcfg.project, testname) then
 					info.SubType = "Designer"
-					info.Generator = "ResXFileCodeGenerator"
+
+					local resourceAccessGenerator = "ResXFileCodeGenerator"
+					if fcfg.project.resourcegenerator then
+						if fcfg.project.resourcegenerator == "public" then
+							resourceAccessGenerator = "PublicResXFileCodeGenerator"
+						end
+					end
+
+					info.Generator = resourceAccessGenerator
 					info.LastGenOutput = path.getname(testname)
 				end
 			end
@@ -160,6 +180,15 @@
 			if project.hasfile(fcfg.project, testname) then
 				info.Generator = "SettingsSingleFileGenerator"
 				info.LastGenOutput = path.getname(testname)
+			end
+		end
+
+		if info.action == "Content" and fname:endswith(".tt") then
+			local testname = fname:sub(1, -4) .. ".cs"
+			if project.hasfile(fcfg.project, testname) then
+				info.Generator = "TextTemplatingFileGenerator"
+				info.LastGenOutput = path.getname(testname)
+				info.CopyToOutputDirectory = nil
 			end
 		end
 
@@ -218,7 +247,7 @@
 		}
 
 		if tool == "csc" then
-			local toolset = _OPTIONS.dotnet or iif(os.is(premake.WINDOWS), "msnet", "mono")
+			local toolset = _OPTIONS.dotnet or "msnet"
 			return compilers[toolset]
 		else
 			return "resgen"
@@ -265,6 +294,10 @@
 			table.insert(flags, table.implode(cfg.defines, "/d:", "", " "))
 		end
 
+		if cfg.csversion ~= nil then
+			table.insert(flags, '/langversion:' .. cfg.csversion)
+		end
+
 		return table.join(flags, cfg.buildoptions)
 	end
 
@@ -281,6 +314,8 @@
 			return "WinExe"
 		elseif (cfg.kind == "SharedLib") then
 			return "Library"
+		else
+			error("invalid dotnet kind " .. cfg.kind .. ". Valid kinds are ConsoleApp, WindowsApp, SharedLib")
 		end
 	end
 

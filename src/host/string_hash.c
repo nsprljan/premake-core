@@ -11,17 +11,17 @@
 int string_hash(lua_State* L)
 {
 	const char* str = luaL_checkstring(L, 1);
-	unsigned long seed = luaL_optint(L, 2, 0);
-	lua_pushnumber(L, (lua_Number)do_hash(str, seed));
+	int seed = (int)luaL_optinteger(L, 2, 0);
+	lua_pushinteger(L, do_hash(str, seed));
 	return 1;
 }
 
 
-unsigned long do_hash(const char* str, int seed)
+uint32_t do_hash(const char* str, int seed)
 {
 	/* DJB2 hashing; see http://www.cse.yorku.ca/~oz/hash.html */
 
-	unsigned long hash = 5381;
+	uint32_t hash = 5381;
 
 	if (seed != 0) {
 		hash = hash * 33 + seed;

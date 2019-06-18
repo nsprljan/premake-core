@@ -4,8 +4,9 @@
 -- Copyright (c) 2011-2013 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("project_vpaths")
-	local project = premake.project
+	local project = p.project
 
 
 --
@@ -99,12 +100,6 @@
 		test.isequal("Headers/hello.h", run())
 	end
 
-	function suite.MatchFilePattern_ToNestedGroup_Flat()
-		files { "src/myproject/hello.h" }
-		vpaths { ["Group/Headers"] = "**.h" }
-		test.isequal("Group/Headers/hello.h", run())
-	end
-
 	function suite.MatchFilePattern_ToGroup_Nested()
 		files { "src/myproject/hello.h" }
 		vpaths { ["Headers/*"] = "**.h" }
@@ -123,11 +118,11 @@
 		test.isequal("Headers/myproject/hello.h", run())
 	end
 
-    function suite.matchBaseFileName_onWildcardExtension()
-         files { "hello.cpp" }
-         vpaths { ["Sources"] = "hello.*" }
-         test.isequal("Sources/hello.cpp", run())
-    end
+	function suite.matchBaseFileName_onWildcardExtension()
+		files { "hello.cpp" }
+		vpaths { ["Sources"] = "hello.*" }
+		test.isequal("Sources/hello.cpp", run())
+	end
 
 
 --

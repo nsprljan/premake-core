@@ -16,6 +16,39 @@
 	local tree = p.tree
 
 --
+-- Checks if a node must be excluded completely from a target or not. It will
+-- return true only if the node has the "ExcludeFromBuild" flag in all the
+-- configurations.
+--
+-- @param node
+--    The node to check.
+-- @param prj
+--    The project being generated.
+-- @returns
+--    A boolean, telling whether the node must be excluded from its target or not.
+--
+	function xcode.mustExcludeFromTarget(node, prj)
+		if not node.configs then
+			return false
+		end
+
+		local value
+		for cfg in premake.project.eachconfig(prj) do
+			local filecfg = premake.fileconfig.getconfig(node, cfg)
+			if filecfg then
+				local newValue = not not filecfg.flags.ExcludeFromBuild
+				if value == nil then
+					value = newValue
+				elseif value ~= newValue then
+					p.warn(node.name .. " is excluded in just some configurations. Autocompletion will not work correctly on this file in Xcode.")
+					return false
+				end
+			end
+		end
+		return value
+	end
+
+--
 -- Create a tree corresponding to what is shown in the Xcode project browser
 -- pane, with nodes for files and folders, resources, frameworks, and products.
 --
@@ -39,33 +72,33 @@
 			table.insert(tr.configs, cfg)
 		end
 
-        -- convert localized resources from their filesystem layout (English.lproj/MainMenu.xib)
+		-- convert localized resources from their filesystem layout (English.lproj/MainMenu.xib)
 		-- to Xcode's display layout (MainMenu.xib/English).
-		 tree.traverse(tr, {
-		 	onbranch = function(node)
-		 		if path.getextension(node.name) == ".lproj" then
-		 			local lang = path.getbasename(node.name)  -- "English", "French", etc.
+		tree.traverse(tr, {
+			onbranch = function(node)
+				if path.getextension(node.name) == ".lproj" then
+					local lang = path.getbasename(node.name)  -- "English", "French", etc.
 
-		 			-- create a new language group for each file it contains
-		 			for _, filenode in ipairs(node.children) do
-		 				local grpnode = node.parent.children[filenode.name]
-		 				if not grpnode then
-		 					grpnode = tree.insert(node.parent, tree.new(filenode.name))
-		 					grpnode.kind = "vgroup"
-		 				end
+					-- create a new language group for each file it contains
+					for _, filenode in ipairs(node.children) do
+						local grpnode = node.parent.children[filenode.name]
+						if not grpnode then
+							grpnode = tree.insert(node.parent, tree.new(filenode.name))
+							grpnode.kind = "vgroup"
+						end
 
-		 				-- convert the file node to a language node and add to the group
-		 				filenode.name = path.getbasename(lang)
-		 				tree.insert(grpnode, filenode)
-		 			end
+						-- convert the file node to a language node and add to the group
+						filenode.name = path.getbasename(lang)
+						tree.insert(grpnode, filenode)
+					end
 
 					-- remove this directory from the tree
-		 			tree.remove(node)
-		 		end
-		 	end
-		 })
+					tree.remove(node)
+				end
+			end
+		})
 
-        -- the special folder "Frameworks" lists all linked frameworks
+		-- the special folder "Frameworks" lists all linked frameworks
 		tr.frameworks = tree.new("Frameworks")
 		for cfg in project.eachconfig(prj) do
 			for _, link in ipairs(config.getlinks(cfg, "system", "fullpath")) do
@@ -73,9 +106,9 @@
 				if xcode.isframework(name) and not tr.frameworks.children[name] then
 					node = tree.insert(tr.frameworks, tree.new(name))
 					node.path = link
-		 		end
-		 	end
-		 end
+				end
+			end
+		end
 
 		-- only add it to the tree if there are frameworks to link
 		if #tr.frameworks.children > 0 then
@@ -84,7 +117,7 @@
 
 		-- the special folder "Products" holds the target produced by the project; this
 		-- is populated below
-		 tr.products = tree.insert(tr, tree.new("Products"))
+		tr.products = tree.insert(tr, tree.new("Products"))
 
 		-- the special folder "Projects" lists sibling project dependencies
 		tr.projects = tree.new("Projects")
@@ -95,31 +128,47 @@
 			xcode.addDependency(prj, tr, dep, false)
 		end
 
-		 if #tr.projects.children > 0 then
-		 	tree.insert(tr, tr.projects)
-		 end
+		if #tr.projects.children > 0 then
+			tree.insert(tr, tr.projects)
+		end
 
-        -- Final setup
-		 tree.traverse(tr, {
-		 	onnode = function(node)
-		 		-- assign IDs to every node in the tree
-		 		node.id = xcode.newid(node.name, nil, node.path)
+		-- Final setup
+		tree.traverse(tr, {
+			onnode = function(node)
+				local nodePath
+				if node.path then
+					nodePath = path.getrelative(tr.project.location, node.path)
+				end
+				-- assign IDs to every node in the tree
+				node.id = xcode.newid(node.name, nil, nodePath)
 
-		 		node.isResource = xcode.isItemResource(prj, node)
+				node.isResource = xcode.isItemResource(prj, node)
 
-		 		-- assign build IDs to buildable files
-				if xcode.getbuildcategory(node) and not node.excludefrombuild then
-		 			node.buildid = xcode.newid(node.name, "build", node.path)
-		 		end
+				-- check to see if this file has custom build
+				if node.configs then
+					for cfg in project.eachconfig(prj) do
+						local filecfg = fileconfig.getconfig(node, cfg)
+						if fileconfig.hasCustomBuildRule(filecfg) then
+							if not node.buildcommandid then
+								node.buildcommandid = xcode.newid(node.name, "buildcommand", nodePath)
+							end
+						end
+					end
+				end
 
-		 		-- remember key files that are needed elsewhere
-		 		if string.endswith(node.name, "Info.plist") then
-		 			tr.infoplist = node
-		 		end
-		 	end
-		 }, true)
+				-- assign build IDs to buildable files
+				if xcode.getbuildcategory(node) and not node.excludefrombuild and not xcode.mustExcludeFromTarget(node, tr.project) then
+					node.buildid = xcode.newid(node.name, "build", nodePath)
+				end
 
-        -- Plug in the product node into the Products folder in the tree. The node
+				-- remember key files that are needed elsewhere
+				if string.endswith(node.name, "Info.plist") then
+					tr.infoplist = node
+				end
+			end
+		}, true)
+
+		-- Plug in the product node into the Products folder in the tree. The node
 		-- was built in xcode.prepareWorkspace() in xcode_common.lua; it contains IDs
 		-- that are necessary for inter-project dependencies
 		node = tree.insert(tr.products, prj.xcode.projectnode)
@@ -145,7 +194,7 @@
 		xcnode.targetdependid = xcode.newid(xcnode.name, "targdep")
 
 		-- create a grandchild node for the dependency's link target
-		local lprj = premake.workspace.findproject(prj.workspace, dep.name)
+		local lprj = p.workspace.findproject(prj.workspace, dep.name)
 		local cfg = project.findClosestMatch(lprj, prj.configurations[1])
 		node = tree.insert(xcnode, tree.new(cfg.linktarget.name))
 		node.path = cfg.linktarget.fullpath
@@ -177,6 +226,7 @@
 		xcode.PBXFrameworksBuildPhase(tr)
 		xcode.PBXGroup(tr)
 		xcode.PBXNativeTarget(tr)
+		xcode.PBXAggregateTarget(tr)
 		xcode.PBXProject(tr)
 		xcode.PBXReferenceProxy(tr)
 		xcode.PBXResourcesBuildPhase(tr)

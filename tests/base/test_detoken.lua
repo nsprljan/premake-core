@@ -4,9 +4,9 @@
 -- Copyright (c) 2011-2014 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("detoken")
-
-	local detoken = premake.detoken
+	local detoken = p.detoken
 
 
 --
@@ -17,7 +17,7 @@
 	local environ = {}
 
 	function suite.setup()
-		action = premake.action.get("test")
+		action = p.action.get("test")
 	end
 
 	function suite.teardown()
@@ -90,6 +90,29 @@
 		environ.cfg = { basedir = path.getdirectory(cwd) }
 		x = detoken.expand("cd %{cfg.basedir}", environ,  {}, cwd)
 		test.isequal("cd ..", x)
+	end
+
+--
+-- but not if it is prefixed with a !
+--
+
+	function suite.canExpandWithExclamationMark()
+		local cwd = os.getcwd()
+		environ.cfg = { basedir = path.getdirectory(cwd) }
+		x = detoken.expand("%{!cfg.basedir}", environ,  {}, cwd)
+		test.isequal(path.getdirectory(os.getcwd()), x)
+	end
+
+
+--
+-- If a path field contains a token that expands to a deferred join,
+-- it should be resolved before performing detoken.
+--
+
+	function suite.canExpandWithDeferredJoin()
+		local cwd = os.getcwd()
+		x = detoken.expand(path.deferredjoin(os.getcwd(), "%{_ACTION}"), environ,  {}, cwd)
+		test.isequal(os.getcwd() .. "/test", x)
 	end
 
 

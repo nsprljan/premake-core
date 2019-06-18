@@ -190,9 +190,9 @@
 			for cfg in project.eachconfig(prj) do
 			if not depsOnly then
 				for _, link in ipairs(cfg.links) do
-				    if link ~= prj.name then
-				    	add_to_project_list(cfg, link, result)
-				    end
+					if link ~= prj.name then
+						add_to_project_list(cfg, link, result)
+					end
 				end
 			end
 				if not linkOnly then
@@ -246,7 +246,11 @@
 			return result
 		else
 			if filename then
-				return path.getrelative(prj.location, filename)
+				local result = filename
+				if path.hasdeferredjoin(result) then
+					result = path.resolvedeferredjoin(result)
+				end
+				return path.getrelative(prj.location, result)
 			end
 		end
 	end
@@ -441,39 +445,59 @@
 
 
 --
--- Returns true if the project uses the C (and not C++) language.
---
-
-	function project.isc(prj)
-		return prj.language == premake.C
-	end
-
-
-
---
--- Returns true if the project uses a C/C++ language.
---
-
-	function project.iscpp(prj)
-		return prj.language == premake.C or prj.language == premake.CPP
-	end
-
-
---
 -- Returns true if the project uses a .NET language.
 --
 
 	function project.isdotnet(prj)
-		return prj.language == premake.CSHARP
+		return
+			p.languages.iscsharp(prj.language) or
+			p.languages.isfsharp(prj.language)
 	end
 
 
 --
--- Returns true if the project uses a native language.
+-- Returns true if the project uses a C# language.
 --
 
+	function project.iscsharp(prj)
+		return p.languages.iscsharp(prj.language)
+	end
+
+
+--
+-- Returns true if the project uses a F# language.
+--
+
+	function project.isfsharp(prj)
+		return p.languages.isfsharp(prj.language)
+	end
+
+
+--
+-- Returns true if the project uses a cpp language.
+--
+
+	function project.isc(prj)
+		return p.languages.isc(prj.language)
+	end
+
+
+--
+-- Returns true if the project uses a cpp language.
+--
+
+	function project.iscpp(prj)
+		return p.languages.iscpp(prj.language)
+	end
+
+
+--
+-- Returns true if the project has uses any 'native' languages.
+-- which is basically anything other then .net at this point.
+-- modules like the dlang should overload this to add 'project.isd(prj)' to it.
+--
 	function project.isnative(prj)
-		return project.iscpp(prj)
+		return project.isc(prj) or project.iscpp(prj)
 	end
 
 
@@ -492,7 +516,8 @@
 		local testpattern = function(pattern, pairing, i)
 			local j = 1
 			while i <= #pairing and j <= #pattern do
-				if pairing[i] ~= pattern[j] then
+				local wd = path.wildcards(pattern[j])
+				if pairing[i]:match(wd) ~= pairing[i] then
 					return false
 				end
 				i = i + 1

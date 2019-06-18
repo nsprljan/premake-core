@@ -5,10 +5,11 @@
 ---
 
 	local suite = test.declare("d_make")
-	local m = premake.modules.d
+	local p = premake
+	local m = p.modules.d
 
-	local make = premake.make
-	local project = premake.project
+	local make = p.make
+	local project = p.project
 
 
 ---------------------------------------------------------------------------
@@ -18,19 +19,19 @@
 	local wks, prj, cfg
 
 	function suite.setup()
-		premake.escaper(make.esc)
+		p.escaper(make.esc)
 		wks = test.createWorkspace()
 	end
 
 	local function prepare()
-		prj = premake.workspace.getproject(wks, 1)
+		prj = p.workspace.getproject(wks, 1)
 	end
 
 	local function prepare_cfg(calls)
-		prj = premake.workspace.getproject(wks, 1)
+		prj = p.workspace.getproject(wks, 1)
 		local cfg = test.getconfig(prj, "Debug")
-		local toolset = premake.tools.dmd
-		premake.callArray(calls, cfg, toolset)
+		local toolset = p.tools.dmd
+		p.callArray(calls, cfg, toolset)
 	end
 
 
@@ -52,7 +53,7 @@ $(TARGET): $(SOURCEFILES) $(LDDEPS)
 	end
 
 	function suite.make_targetRules_separateCompilation()
-		flags { "SeparateCompilation" }
+		compilationmodel "File"
 		prepare()
 		m.make.targetRules(prj)
 		test.capture [[
@@ -66,7 +67,7 @@ $(TARGET): $(OBJECTS) $(LDDEPS)
 
 	function suite.make_targetRules_mixedCompilation()
 		configuration { "Release" }
-			flags { "SeparateCompilation" }
+			compilationmodel "File"
 		prepare()
 		m.make.targetRules(prj)
 		test.capture [[
@@ -98,7 +99,7 @@ endif
 
 	function suite.make_fileRules_separateCompilation()
 		files { "blah.d" }
-		flags { "SeparateCompilation" }
+		compilationmodel "File"
 		prepare()
 		m.make.dFileRules(prj)
 		test.capture [[
@@ -111,7 +112,7 @@ $(OBJDIR)/blah.o: blah.d
 	function suite.make_fileRules_mixedCompilation()
 		files { "blah.d" }
 		configuration { "Release" }
-			flags { "SeparateCompilation" }
+			compilationmodel "File"
 		prepare()
 		m.make.dFileRules(prj)
 		test.capture [[
@@ -135,7 +136,7 @@ SOURCEFILES := \
 
 	function suite.make_objects_separateCompilation()
 		files { "blah.d" }
-		flags { "SeparateCompilation" }
+		compilationmodel "File"
 		prepare()
 		m.make.objects(prj)
 		test.capture [[
@@ -148,7 +149,7 @@ OBJECTS := \
 	function suite.make_objects_mixedCompilation()
 		files { "blah.d" }
 		configuration { "Release" }
-			flags { "SeparateCompilation" }
+			compilationmodel "File"
 			files { "blah2.d" }
 		prepare()
 		m.make.objects(prj)
@@ -185,7 +186,7 @@ all: $(TARGETDIR) prebuild prelink $(TARGET)
 	end
 
 	function suite.make_allRules_separateCompilation()
-		flags { "SeparateCompilation" }
+		compilationmodel "File"
 		prepare_cfg({ m.make.allRules })
 		test.capture [[
 all: $(TARGETDIR) $(OBJDIR) prebuild prelink $(TARGET)

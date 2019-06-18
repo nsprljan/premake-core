@@ -6,7 +6,8 @@
 ---
 
 	local suite = test.declare("codelite_workspace")
-	local codelite = premake.modules.codelite
+	local p = premake
+	local codelite = p.modules.codelite
 
 
 --
@@ -16,8 +17,9 @@
 	local wks, prj
 
 	function suite.setup()
-		premake.action.set("codelite")
-		premake.indent("  ")
+		p.action.set("codelite")
+		p.escaper(codelite.esc)
+		p.indent("  ")
 		wks = test.createWorkspace()
 	end
 
@@ -129,3 +131,63 @@
 </CodeLite_Workspace>
 		]])
 	end
+
+
+	function suite.onActiveProject()
+		workspace("MyWorkspace")
+		startproject "MyProject"
+		prepare()
+		test.capture([[
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeLite_Workspace Name="MyWorkspace" Database="" SWTLW="No">
+  <Project Name="MyProject" Path="MyProject.project" Active="Yes"/>
+  <BuildMatrix>
+    <WorkspaceConfiguration Name="Debug" Selected="yes">
+      <Project Name="MyProject" ConfigName="Debug"/>
+    </WorkspaceConfiguration>
+    <WorkspaceConfiguration Name="Release" Selected="yes">
+      <Project Name="MyProject" ConfigName="Release"/>
+    </WorkspaceConfiguration>
+  </BuildMatrix>
+</CodeLite_Workspace>
+		]])
+	end
+
+
+  function suite.onGroupedProjects()
+    wks.projects = {}
+    project "MyGrouplessProject"
+    group "MyGroup"
+    project "MyGroupedProject"
+    group "My/Nested/Group"
+    project "MyNestedGroupedProject"
+    prepare()
+    test.capture([[
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeLite_Workspace Name="MyWorkspace" Database="" SWTLW="No">
+  <VirtualDirectory Name="My">
+    <VirtualDirectory Name="Nested">
+      <VirtualDirectory Name="Group">
+        <Project Name="MyNestedGroupedProject" Path="MyNestedGroupedProject.project"/>
+      </VirtualDirectory>
+    </VirtualDirectory>
+  </VirtualDirectory>
+  <VirtualDirectory Name="MyGroup">
+    <Project Name="MyGroupedProject" Path="MyGroupedProject.project"/>
+  </VirtualDirectory>
+  <Project Name="MyGrouplessProject" Path="MyGrouplessProject.project"/>
+  <BuildMatrix>
+    <WorkspaceConfiguration Name="Debug" Selected="yes">
+      <Project Name="MyNestedGroupedProject" ConfigName="Debug"/>
+      <Project Name="MyGroupedProject" ConfigName="Debug"/>
+      <Project Name="MyGrouplessProject" ConfigName="Debug"/>
+    </WorkspaceConfiguration>
+    <WorkspaceConfiguration Name="Release" Selected="yes">
+      <Project Name="MyNestedGroupedProject" ConfigName="Release"/>
+      <Project Name="MyGroupedProject" ConfigName="Release"/>
+      <Project Name="MyGrouplessProject" ConfigName="Release"/>
+    </WorkspaceConfiguration>
+  </BuildMatrix>
+</CodeLite_Workspace>
+    ]])
+  end

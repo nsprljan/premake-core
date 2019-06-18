@@ -16,70 +16,83 @@
 
 
 	function m.runTest(test)
-		local scopedTestCall
-
-		if test.testFunction then
-			scopedTestCall = _.runTest
-		elseif test.suite then
-			scopedTestCall = _.runTestSuite
-		else
-			scopedTestCall = _.runAllTests
-		end
-
-		return scopedTestCall(test)
-	end
-
-
-
-	function _.runAllTests()
-		local passed = 0
 		local failed = 0
+		local failedTests = {}
 
 		local suites = m.getSuites()
-		for suiteName, suite in pairs(suites) do
+		local suitesKeys, suiteTestsKeys, totalTestCount = _.preprocessTests(suites, test)
+
+		_.log(term.lightGreen, "[==========]", string.format(" Running %d tests from %d test suites.", totalTestCount, #suitesKeys))
+		local startTime = os.clock()
+
+		for index, suiteName in ipairs(suitesKeys) do
+		  suite = suites[suiteName]
 			if not m.isSuppressed(suiteName) then
-				local test = {}
+				local test = {
+					suiteName = suiteName,
+					suite = suite
+				}
 
-				test.suiteName = suiteName
-				test.suite = suite
+				local suiteFailed, suiteFailedTests = _.runTestSuite(test, suiteTestsKeys[suiteName])
 
-				local suitePassed, suiteFailed = _.runTestSuite(test)
-
-				passed = passed + suitePassed
 				failed = failed + suiteFailed
+				failedTests = table.join(failedTests, suiteFailedTests)
 			end
 		end
 
-		return passed, failed
+		_.log(term.lightGreen, "[==========]", string.format(" %d tests from %d test suites ran. (%.0f ms total)", totalTestCount, #suitesKeys, (os.clock() - startTime) * 1000))
+		_.log(term.lightGreen, "[  PASSED  ]", string.format(" %d tests.", totalTestCount - failed))
+		if failed > 0 then
+			_.log(term.lightRed, "[  FAILED  ]", string.format(" %d tests, listed below:", failed))
+			for index, testName in ipairs(failedTests) do
+				_.log(term.lightRed, "[  FAILED  ]", " " .. testName)
+			end
+		end
+
+		return (totalTestCount - failed), failed
 	end
 
 
 
-	function _.runTestSuite(test)
-		local passed = 0
+	function _.runTestSuite(test, keys)
 		local failed = 0
+		local failedTests = {}
+		_.log(term.lightGreen, "[----------]", string.format(" %d tests from %s", #keys, test.suiteName))
+		local startTime = os.clock()
 
-		for testName, testFunction in pairs(test.suite) do
-			test.testName = testName
-			test.testFunction = testFunction
+		if test.suite ~= nil then
+			for index, testName in ipairs(keys) do
+				testFunction = test.suite[testName]
+				test.testName = testName
+				test.testFunction = testFunction
 
-			if m.isValid(test) and not m.isSuppressed(test.suiteName .. "." .. test.testName) then
-				local np, nf = _.runTest(test)
-				passed = passed + np
-				failed = failed + nf
+				if m.isValid(test) and not m.isSuppressed(test.suiteName .. "." .. test.testName) then
+					local err = _.runTest(test)
+					if err then
+						failed = failed + 1
+						table.insert(failedTests, test.suiteName .. "." .. test.testName .. "\n" .. err)
+					end
+				end
 			end
 		end
 
-		return passed, failed
+		_.log(term.lightGreen, "[----------]", string.format(" %d tests from %s (%.0f ms total)\n", #keys, test.suiteName, (os.clock() - startTime) * 1000))
+		return failed, failedTests
 	end
 
 
 
 	function _.runTest(test)
+		_.log(term.lightGreen, "[ RUN      ]", string.format(" %s.%s", test.suiteName, test.testName))
+		local startTime = os.clock()
+		local cwd = os.getcwd()
 		local hooks = _.installTestingHooks()
 
 		_TESTS_DIR = test.suite._TESTS_DIR
 		_SCRIPT_DIR = test.suite._SCRIPT_DIR
+
+		m.suiteName = test.suiteName
+		m.testName = test.testName
 
 		local ok, err = _.setupTest(test)
 
@@ -92,13 +105,57 @@
 		err = err or terr
 
 		_.removeTestingHooks(hooks)
+		os.chdir(cwd)
 
 		if ok then
-			return 1, 0
+			_.log(term.lightGreen, "[       OK ]", string.format(" %s.%s (%.0f ms)", test.suiteName, test.testName, (os.clock() - startTime) * 1000))
+			return nil
 		else
-			m.print(string.format("%s.%s: %s", test.suiteName, test.testName, err))
-			return 0, 1
+			_.log(term.lightRed, "[  FAILED  ]", string.format(" %s.%s (%.0f ms)", test.suiteName, test.testName, (os.clock() - startTime) * 1000))
+			m.print(string.format("%s", err))
+			return err
 		end
+	end
+
+
+
+	function _.log(color, left, right)
+		term.pushColor(color)
+		io.write(left)
+		term.popColor()
+		m.print(right)
+	end
+
+
+
+	function _.preprocessTests(suites, filter)
+		local suitesKeys = {}
+		local suiteTestsKeys = {}
+		local totalTestCount = 0
+
+		for suiteName, suite in pairs(suites) do
+			if not m.isSuppressed(suiteName) and suite ~= nil and (not filter.suiteName or filter.suiteName == suiteName) then
+				local test = {}
+
+				table.insertsorted(suitesKeys, suiteName)
+
+				test.suiteName = suiteName
+				test.suite = suite
+
+				suiteTestsKeys[suiteName] = {}
+				for testName, testFunction in pairs(suite) do
+					test.testName = testName
+					test.testFunction = testFunction
+
+					if m.isValid(test) and not m.isSuppressed(test.suiteName .. "." .. test.testName) and (not filter.testName or filter.testName == testName) then
+						table.insertsorted(suiteTestsKeys[suiteName], testName)
+					end
+				end
+				totalTestCount = totalTestCount + #suiteTestsKeys[suiteName]
+			end
+		end
+
+		return suitesKeys, suiteTestsKeys, totalTestCount
 	end
 
 
@@ -108,19 +165,20 @@
 
 		hooks.action = _ACTION
 		hooks.options = _OPTIONS
-		hooks.os = _OS
+		hooks.targetOs = _TARGET_OS
 
 		hooks.io_open = io.open
 		hooks.io_output = io.output
 		hooks.os_writefile_ifnotequal = os.writefile_ifnotequal
 		hooks.p_utf8 = p.utf8
 		hooks.print = print
+		hooks.setTextColor = term.setTextColor
 
 		local mt = getmetatable(io.stderr)
 		_.builtin_write = mt.write
 		mt.write = _.stub_stderr_write
 
-		_OPTIONS = {}
+		_OPTIONS = table.shallowcopy(_OPTIONS) or {}
 		setmetatable(_OPTIONS, getmetatable(hooks.options))
 
 		io.open = _.stub_io_open
@@ -128,6 +186,7 @@
 		os.writefile_ifnotequal = _.stub_os_writefile_ifnotequal
 		print = _.stub_print
 		p.utf8 = _.stub_utf8
+		term.setTextColor = _.stub_setTextColor
 
 		stderr_capture = nil
 
@@ -149,15 +208,16 @@
 
 
 	function _.removeTestingHooks(hooks)
-		_ACTION = hooks.action
+		p.action.set(hooks.action)
 		_OPTIONS = hooks.options
-		_OS = hooks.os
+		_TARGET_OS = hooks.targetOs
 
 		io.open = hooks.io_open
 		io.output = hooks.io_output
 		os.writefile_ifnotequal = hooks.os_writefile_ifnotequal
 		p.utf8 = hooks.p_utf8
 		print = hooks.print
+		term.setTextColor = hooks.setTextColor
 
 		local mt = getmetatable(io.stderr)
 		mt.write = _.builtin_write
@@ -224,6 +284,8 @@
 		m.value_openedfilename = fname
 		m.value_openedfilemode = mode
 		return {
+			read = function()
+			end,
 			close = function()
 				m.value_closedfile = true
 			end
@@ -262,4 +324,8 @@
 
 
 	function _.stub_utf8()
+	end
+
+
+	function _.stub_setTextColor()
 	end

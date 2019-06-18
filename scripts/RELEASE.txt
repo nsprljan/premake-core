@@ -7,7 +7,11 @@ PREP
 
  * Notify developer list of release branch availability; request testing
 
- * Update CHANGES.txt and CONTRIBUTORS.txt
+ * Update CHANGES.txt (`git log release-branch-name ^release --merges`)
+
+ * Update README.md
+
+   * "Commits since last release" badge - once out of prerelease replace `v5.0.0-alphaXX` with `latest`
 
  * Update version in src/host/premake.h and commit
 

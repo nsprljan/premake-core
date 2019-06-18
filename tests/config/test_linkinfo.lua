@@ -4,8 +4,9 @@
 -- Copyright (c) 2012-2013 Jason Perkins and the Premake project
 --
 
+	local p = premake
 	local suite = test.declare("config_linkinfo")
-	local config = premake.config
+	local config = p.config
 
 
 --
@@ -15,7 +16,7 @@
 	local wks, prj
 
 	function suite.setup()
-		premake.action.set("test")
+		p.action.set("test")
 		wks, prj = test.createWorkspace()
 		kind "StaticLib"
 		system "Windows"
@@ -76,7 +77,7 @@
 -- Shared library should use implibname() if present.
 --
 
-	function suite.basenameIsTargetName_onTargetName()
+	function suite.basenameIsImplibName_onTargetName()
 		kind "SharedLib"
 		targetname "MyTarget"
 		implibname "MyTargetImports"
