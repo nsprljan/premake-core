@@ -12,6 +12,8 @@
 
 #if PLATFORM_WINDOWS
 	#include <io.h>
+  #include <fcntl.h>
+	#include <sys/stat.h>
 #else
 	#include <unistd.h>
 	#include <sys/types.h>
@@ -26,6 +28,30 @@
 
 static int truncate_file(const char* fn)
 {
+#if PLATFORM_WINDOWS
+	int fh; //File handle
+	if( _sopen_s( &fh, fn, _O_RDWR | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE ) == 0 )
+	{
+		long size = _filelength( fh );
+		//Write, then truncate
+		char buffer[] = " ";
+		if (_lseek( fh, 0L, SEEK_END ) != -1L)
+		{
+			if (_write(fh, buffer, 1) == 1)
+			{
+				if(_chsize( fh, size ) == 0)
+				{
+					_close(fh);
+					return TRUE;
+				}
+			}
+		}
+		_close(fh);
+		return FALSE;
+	}
+	else
+		return FALSE;
+#else
 	FILE* file = fopen(fn, "rb");
 	size_t size;
 	file = fopen(fn, "ab");
@@ -43,15 +69,9 @@ static int truncate_file(const char* fn)
 		fclose(file);
 		return FALSE;
 	}
-#if PLATFORM_WINDOWS
-	if (_chsize(_fileno(file), (long)size) != 0)
-	{
-		fclose(file);
-		return FALSE;
-	}
-#endif
+
 	fclose(file);
-#if !PLATFORM_WINDOWS
+
 	if (truncate(fn, (off_t)size) != 0)
 	{
 		return FALSE;
